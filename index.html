@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信貸買0050回測試算</title>
+<style>
+  :root { --green: #0a8f3c; --red: #d32f2f; --blue: #1565c0; --bg: #f5f7fa; --card: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: var(--bg); color: #333; padding: 16px; }
+  h1 { text-align: center; margin: 16px 0 8px; font-size: 1.5em; }
+  .subtitle { text-align: center; color: #666; font-size: 0.9em; margin-bottom: 20px; }
+  .params { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .param-card { background: var(--card); border-radius: 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .param-card .label { font-size: 0.8em; color: #888; margin-bottom: 4px; }
+  .param-card .value { font-size: 1.2em; font-weight: 600; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .summary-card { background: var(--card); border-radius: 8px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); text-align: center; }
+  .summary-card .label { font-size: 0.8em; color: #888; }
+  .summary-card .value { font-size: 1.3em; font-weight: 700; margin-top: 4px; }
+  .summary-card .value.profit { color: var(--green); }
+  .summary-card .value.loss { color: var(--red); }
+  .verdict { text-align: center; padding: 20px; margin: 20px 0; border-radius: 12px; font-size: 1.2em; font-weight: 700; }
+  .verdict.profit { background: #e8f5e9; color: var(--green); border: 2px solid var(--green); }
+  .verdict.loss { background: #ffebee; color: var(--red); border: 2px solid var(--red); }
+  .table-wrap { overflow-x: auto; margin-bottom: 30px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82em; background: var(--card); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  th { background: #37474f; color: #fff; padding: 10px 6px; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+  td { padding: 8px 6px; text-align: right; border-bottom: 1px solid #eee; white-space: nowrap; }
+  td:first-child, td:nth-child(2), td:nth-child(3) { text-align: center; }
+  tr:hover { background: #e3f2fd; }
+  tr.split-row { background: #fff3e0; }
+  tr.dividend-row { background: #e8f5e9; }
+  tr.projected { color: #888; font-style: italic; }
+  .event-tag { display: inline-block; font-size: 0.7em; padding: 1px 5px; border-radius: 4px; margin-left: 4px; font-weight: 600; }
+  .event-tag.split { background: #ff9800; color: #fff; }
+  .event-tag.div { background: #4caf50; color: #fff; }
+  .event-tag.proj { background: #9e9e9e; color: #fff; }
+  .note { background: #fff8e1; border-left: 4px solid #ffc107; padding: 12px; margin: 16px 0; border-radius: 4px; font-size: 0.9em; }
+  .section-title { font-size: 1.1em; font-weight: 600; margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #37474f; }
+  .footer { text-align: center; color: #999; font-size: 0.8em; margin-top: 30px; }
+  @media (max-width: 768px) {
+    .params { grid-template-columns: 1fr 1fr; }
+    table { font-size: 0.72em; }
+  }
+</style>
+</head>
+<body>
+<h1>信貸買 0050 回測試算</h1>
+<div class="subtitle">以 2024-04-16 撥款日為起點，全額買入 0050，逐月賣股還款</div>
+
+<div class="params" id="params"></div>
+<div class="verdict" id="verdict"></div>
+<div class="summary-grid" id="summary"></div>
+
+<div class="note" id="noteArea"></div>
+
+<div class="section-title">逐月明細表</div>
+<div class="table-wrap">
+  <table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div class="section-title">股利事件明細</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>除息日</th><th>發放日</th><th>每股股利</th><th>持股數</th><th>股利總額</th><th>處理方式</th><th>買入股數</th><th>買入價格</th></tr></thead>
+    <tbody id="divBody"></tbody>
+  </table>
+</div>
+
+<div class="footer">資料來源：台灣證券交易所 (TWSE) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+
+<script>
+// ===== 價格資料 =====
+const PRICES = {
+  "2024-04-01": 157.40, "2024-04-02": 159.65, "2024-04-03": 158.55,
+  "2024-04-08": 159.45, "2024-04-09": 163.25, "2024-04-10": 163.00,
+  "2024-04-11": 162.50, "2024-04-12": 162.10, "2024-04-15": 160.00,
+  "2024-04-16": 155.65, "2024-04-17": 157.40, "2024-04-18": 158.95,
+  "2024-04-19": 150.90, "2024-04-22": 150.45, "2024-04-23": 151.90,
+  "2024-04-24": 156.35, "2024-04-25": 153.50, "2024-04-26": 156.00,
+  "2024-04-29": 158.80, "2024-04-30": 158.25,
+  "2024-05-02": 156.15, "2024-05-03": 156.95, "2024-05-06": 159.20,
+  "2024-05-07": 160.10, "2024-05-08": 160.70, "2024-05-09": 160.50,
+  "2024-05-10": 161.65, "2024-05-13": 163.30, "2024-05-14": 164.40,
+  "2024-05-15": 166.65, "2024-05-16": 167.45, "2024-05-17": 167.25,
+  "2024-05-20": 167.20, "2024-05-21": 167.00, "2024-05-22": 170.00,
+  "2024-05-23": 171.30, "2024-05-24": 170.60, "2024-05-27": 172.95,
+  "2024-05-28": 173.20, "2024-05-29": 170.85, "2024-05-30": 167.90,
+  "2024-05-31": 166.00,
+  "2024-06-03": 169.55, "2024-06-04": 166.85, "2024-06-05": 168.45,
+  "2024-06-06": 174.20, "2024-06-07": 172.85, "2024-06-11": 173.30,
+  "2024-06-12": 176.40, "2024-06-13": 178.95, "2024-06-14": 180.00,
+  "2024-06-17": 180.00, "2024-06-18": 183.00, "2024-06-19": 187.95,
+  "2024-06-20": 189.75, "2024-06-21": 188.60, "2024-06-24": 184.00,
+  "2024-06-25": 183.90, "2024-06-26": 185.35, "2024-06-27": 185.30,
+  "2024-06-28": 186.45,
+  "2024-07-01": 186.60, "2024-07-02": 185.35, "2024-07-03": 187.60,
+  "2024-07-04": 192.50, "2024-07-05": 191.80, "2024-07-08": 197.85,
+  "2024-07-09": 197.65, "2024-07-10": 198.35, "2024-07-11": 202.75,
+  "2024-07-12": 196.35, "2024-07-15": 196.70, "2024-07-16": 196.85,
+  "2024-07-17": 194.10, "2024-07-18": 190.60, "2024-07-19": 186.25,
+  "2024-07-22": 180.70, "2024-07-23": 186.30, "2024-07-26": 179.00,
+  "2024-07-29": 180.60, "2024-07-30": 180.60, "2024-07-31": 180.85,
+  "2024-08-01": 184.00, "2024-08-02": 174.70, "2024-08-05": 158.75,
+  "2024-08-06": 167.50, "2024-08-07": 174.15, "2024-08-08": 170.55,
+  "2024-08-09": 175.85, "2024-08-12": 178.05, "2024-08-13": 178.50,
+  "2024-08-14": 180.75, "2024-08-15": 179.35, "2024-08-16": 183.40,
+  "2024-08-19": 183.65, "2024-08-20": 183.75, "2024-08-21": 181.80,
+  "2024-08-22": 180.85, "2024-08-23": 180.95, "2024-08-26": 181.25,
+  "2024-08-27": 180.45, "2024-08-28": 183.00, "2024-08-29": 180.50,
+  "2024-08-30": 181.35,
+  "2024-09-02": 180.85, "2024-09-03": 180.05, "2024-09-04": 171.25,
+  "2024-09-05": 172.30, "2024-09-06": 174.75, "2024-09-09": 172.05,
+  "2024-09-10": 172.35, "2024-09-11": 171.85, "2024-09-12": 178.30,
+  "2024-09-13": 178.40, "2024-09-16": 178.75, "2024-09-18": 177.85,
+  "2024-09-19": 180.15, "2024-09-20": 182.45, "2024-09-23": 183.25,
+  "2024-09-24": 185.00, "2024-09-25": 187.75, "2024-09-26": 189.30,
+  "2024-09-27": 188.90, "2024-09-30": 183.95,
+  "2024-10-01": 183.60, "2024-10-04": 183.60, "2024-10-07": 188.15,
+  "2024-10-08": 187.25, "2024-10-09": 189.00, "2024-10-11": 192.15,
+  "2024-10-14": 192.30, "2024-10-15": 196.40, "2024-10-16": 193.00,
+  "2024-10-17": 193.30, "2024-10-18": 198.10, "2024-10-21": 198.05,
+  "2024-10-22": 197.30, "2024-10-23": 196.00, "2024-10-24": 194.80,
+  "2024-10-25": 196.40, "2024-10-28": 196.05, "2024-10-29": 191.50,
+  "2024-10-30": 191.80,
+  "2024-11-01": 190.50, "2024-11-04": 192.95, "2024-11-05": 193.65,
+  "2024-11-06": 195.20, "2024-11-07": 197.45, "2024-11-08": 199.00,
+  "2024-11-11": 199.10, "2024-11-12": 194.00, "2024-11-13": 192.75,
+  "2024-11-14": 191.00, "2024-11-15": 192.35, "2024-11-18": 189.65,
+  "2024-11-19": 192.25, "2024-11-20": 191.45, "2024-11-21": 189.35,
+  "2024-11-22": 193.05, "2024-11-25": 192.35, "2024-11-26": 189.85,
+  "2024-11-27": 187.10, "2024-11-28": 186.80, "2024-11-29": 187.25,
+  "2024-12-02": 191.70, "2024-12-03": 194.30, "2024-12-04": 195.45,
+  "2024-12-05": 196.50, "2024-12-06": 195.75, "2024-12-09": 196.00,
+  "2024-12-10": 194.60, "2024-12-11": 192.90, "2024-12-12": 195.15,
+  "2024-12-13": 195.30, "2024-12-16": 196.10, "2024-12-17": 197.10,
+  "2024-12-18": 197.10, "2024-12-19": 194.40, "2024-12-20": 192.60,
+  "2024-12-23": 197.25, "2024-12-24": 197.80, "2024-12-25": 198.40,
+  "2024-12-26": 198.25, "2024-12-27": 198.90, "2024-12-30": 197.80,
+  "2024-12-31": 195.75,
+  "2025-01-02": 194.05, "2025-01-03": 196.00, "2025-01-06": 202.15,
+  "2025-01-07": 204.40, "2025-01-08": 201.35, "2025-01-09": 199.05,
+  "2025-01-10": 199.00, "2025-01-13": 194.40, "2025-01-14": 195.60,
+  "2025-01-15": 194.10, "2025-01-16": 198.05, "2025-01-17": 196.30,
+  "2025-01-20": 198.30, "2025-01-21": 198.70, "2025-01-22": 201.30,
+  "2025-02-03": 192.70, "2025-02-04": 193.85, "2025-02-05": 196.80,
+  "2025-02-06": 197.65, "2025-02-07": 198.55, "2025-02-10": 196.30,
+  "2025-02-11": 197.50, "2025-02-12": 197.20, "2025-02-13": 196.35,
+  "2025-02-14": 194.00, "2025-02-17": 196.95, "2025-02-18": 197.65,
+  "2025-02-19": 197.30, "2025-02-20": 196.55, "2025-02-21": 197.95,
+  "2025-02-24": 196.20, "2025-02-25": 193.65, "2025-02-26": 194.70,
+  "2025-02-27": 192.50,
+  "2025-03-03": 188.05, "2025-03-04": 186.80, "2025-03-05": 189.25,
+  "2025-03-06": 188.10, "2025-03-07": 186.35, "2025-03-10": 185.25,
+  "2025-03-11": 182.00, "2025-03-12": 182.80, "2025-03-13": 181.10,
+  "2025-03-14": 180.50, "2025-03-17": 182.05, "2025-03-18": 182.80,
+  "2025-03-19": 180.55, "2025-03-20": 184.45, "2025-03-21": 182.95,
+  "2025-03-24": 182.75, "2025-03-25": 184.65, "2025-03-26": 184.50,
+  "2025-03-27": 181.00, "2025-03-28": 179.20, "2025-03-31": 172.75,
+  "2025-04-01": 176.30, "2025-04-02": 176.00, "2025-04-07": 158.40,
+  "2025-04-08": 153.25, "2025-04-09": 146.20, "2025-04-10": 160.80,
+  "2025-04-11": 164.55, "2025-04-14": 163.70, "2025-04-15": 165.35,
+  "2025-04-16": 162.35, "2025-04-17": 160.55, "2025-04-18": 160.90,
+  "2025-04-21": 158.60, "2025-04-22": 155.95, "2025-04-23": 162.85,
+  "2025-04-24": 161.90, "2025-04-25": 165.75, "2025-04-28": 167.15,
+  "2025-04-29": 167.80, "2025-04-30": 168.60,
+  "2025-05-02": 173.50, "2025-05-05": 171.95, "2025-05-06": 171.00,
+  "2025-05-07": 170.35, "2025-05-08": 172.60, "2025-05-09": 174.75,
+  "2025-05-12": 176.70, "2025-05-13": 178.85, "2025-05-14": 182.90,
+  "2025-05-15": 182.50, "2025-05-16": 183.00, "2025-05-19": 180.45,
+  "2025-05-20": 180.80, "2025-05-21": 183.60, "2025-05-22": 181.60,
+  "2025-05-23": 180.85, "2025-05-26": 180.65, "2025-05-27": 179.05,
+  "2025-05-28": 179.35, "2025-05-29": 179.75,
+  "2025-06-02": 175.90, "2025-06-03": 177.15, "2025-06-04": 181.30,
+  "2025-06-05": 181.65, "2025-06-06": 181.95, "2025-06-09": 183.70,
+  "2025-06-10": 188.65,
+  "2025-06-18": 47.57, "2025-06-19": 47.10, "2025-06-20": 47.03,
+  "2025-06-23": 46.64, "2025-06-24": 47.49, "2025-06-25": 48.18,
+  "2025-06-26": 48.24, "2025-06-27": 48.29, "2025-06-30": 48.36,
+  "2025-07-01": 48.64, "2025-07-02": 48.65, "2025-07-03": 49.32,
+  "2025-07-04": 48.86, "2025-07-07": 48.57, "2025-07-08": 48.35,
+  "2025-07-09": 48.85, "2025-07-10": 49.41, "2025-07-11": 49.62,
+  "2025-07-14": 49.33, "2025-07-15": 50.00, "2025-07-16": 50.40,
+  "2025-07-17": 50.70, "2025-07-18": 51.45, "2025-07-21": 50.90,
+  "2025-07-22": 50.55, "2025-07-23": 50.70, "2025-07-24": 51.00,
+  "2025-07-25": 50.90, "2025-07-28": 51.05, "2025-07-29": 50.45,
+  "2025-07-30": 51.00, "2025-07-31": 51.55,
+  "2025-08-01": 51.10, "2025-08-04": 50.80, "2025-08-05": 51.45,
+  "2025-08-06": 51.00, "2025-08-07": 52.45, "2025-08-08": 52.45,
+  "2025-08-11": 52.85, "2025-08-12": 52.90, "2025-08-13": 53.35,
+  "2025-08-14": 53.15, "2025-08-15": 53.15, "2025-08-18": 53.30,
+  "2025-08-19": 53.20, "2025-08-20": 51.70, "2025-08-21": 52.00,
+  "2025-08-22": 51.75, "2025-08-25": 52.70, "2025-08-26": 52.75,
+  "2025-08-27": 53.00, "2025-08-28": 52.50, "2025-08-29": 52.50,
+  "2025-09-01": 52.00, "2025-09-02": 52.00, "2025-09-03": 51.95,
+  "2025-09-04": 52.30, "2025-09-05": 52.85, "2025-09-08": 53.35,
+  "2025-09-09": 53.90, "2025-09-10": 54.95, "2025-09-11": 55.45,
+  "2025-09-12": 56.00, "2025-09-15": 56.00, "2025-09-16": 56.75,
+  "2025-09-17": 56.35, "2025-09-18": 56.95, "2025-09-19": 57.00,
+  "2025-09-22": 57.40, "2025-09-23": 58.45, "2025-09-24": 58.40,
+  "2025-09-25": 58.20, "2025-09-26": 57.25, "2025-09-30": 57.80,
+  "2025-10-01": 58.10, "2025-10-02": 59.20, "2025-10-03": 60.05,
+  "2025-10-07": 61.70, "2025-10-08": 61.15, "2025-10-09": 61.60,
+  "2025-10-13": 61.00, "2025-10-14": 60.70, "2025-10-15": 61.80,
+  "2025-10-16": 63.00, "2025-10-17": 62.05, "2025-10-20": 63.10,
+  "2025-10-21": 63.20, "2025-10-22": 62.70, "2025-10-23": 62.35,
+  "2025-10-27": 63.80, "2025-10-28": 63.35, "2025-10-29": 64.40,
+  "2025-10-30": 64.40, "2025-10-31": 64.75,
+  "2025-11-03": 64.15, "2025-11-04": 63.95, "2025-11-05": 63.15,
+  "2025-11-06": 63.30, "2025-11-07": 62.55, "2025-11-10": 63.35,
+  "2025-11-11": 62.90, "2025-11-12": 63.20, "2025-11-13": 62.90,
+  "2025-11-14": 61.70, "2025-11-17": 61.90, "2025-11-18": 60.45,
+  "2025-11-19": 60.05, "2025-11-20": 61.90, "2025-11-21": 59.85,
+  "2025-11-24": 59.55, "2025-11-25": 60.35, "2025-11-26": 61.35,
+  "2025-11-27": 61.90, "2025-11-28": 62.35,
+  "2025-12-01": 61.50, "2025-12-02": 61.70, "2025-12-03": 62.30,
+  "2025-12-04": 62.20, "2025-12-05": 62.75, "2025-12-08": 63.70,
+  "2025-12-09": 63.60, "2025-12-10": 64.05, "2025-12-11": 63.35,
+  "2025-12-12": 63.45, "2025-12-15": 62.80, "2025-12-16": 62.25,
+  "2025-12-17": 61.90, "2025-12-18": 61.90, "2025-12-19": 62.50,
+  "2025-12-22": 63.40, "2025-12-23": 63.70, "2025-12-24": 63.85,
+  "2025-12-26": 64.40, "2025-12-29": 65.25, "2025-12-30": 65.15,
+  "2025-12-31": 65.60,
+  "2026-01-02": 66.95, "2026-01-05": 69.50, "2026-01-06": 70.40,
+  "2026-01-07": 69.85, "2026-01-08": 70.10, "2026-01-09": 69.85,
+  "2026-01-12": 70.35, "2026-01-13": 70.70, "2026-01-14": 70.75,
+  "2026-01-15": 70.65, "2026-01-16": 72.00, "2026-01-19": 72.60,
+  "2026-01-20": 72.60, "2026-01-21": 71.85, "2026-01-22": 71.80,
+  "2026-01-23": 72.25, "2026-01-26": 72.25, "2026-01-27": 73.05,
+  "2026-01-28": 74.20, "2026-01-29": 73.75, "2026-01-30": 72.60,
+  "2026-02-02": 71.50, "2026-02-03": 72.95, "2026-02-04": 72.90,
+  "2026-02-05": 72.00, "2026-02-06": 71.90, "2026-02-09": 73.95,
+  "2026-02-10": 75.50, "2026-02-11": 77.20, "2026-02-23": 77.40,
+  "2026-02-24": 79.40, "2026-02-25": 81.10, "2026-02-26": 81.15,
+  "2026-03-02": 80.35, "2026-03-03": 78.75, "2026-03-04": 75.60,
+  "2026-03-05": 77.40, "2026-03-06": 76.85, "2026-03-09": 73.60,
+  "2026-03-10": 75.20, "2026-03-11": 78.20, "2026-03-12": 76.60,
+  "2026-03-13": 75.95, "2026-03-16": 75.60, "2026-03-17": 76.65,
+  "2026-03-18": 77.80, "2026-03-19": 76.00
+};
+
+// ===== 配置 =====
+const LOAN = 1500000;
+const ANNUAL_RATE = 0.0423;
+const MONTHLY_RATE = ANNUAL_RATE / 12;
+const PERIODS = 84;
+const BUY_COMM = 0.001425;
+const SELL_COMM = 0.001425;
+const SELL_TAX = 0.001;
+const SPLIT_DATE = "2025-06-18";
+const SPLIT_RATIO = 4;
+const BUY_DATE = "2024-04-16";
+const LAST_ACTUAL_DATE = "2026-03-19";
+
+// 股利事件
+const DIVIDENDS = [
+  { exDate: "2024-07-16", payDate: "2024-08-09", amount: 1.00, preSplit: true },
+  { exDate: "2025-01-17", payDate: "2025-02-20", amount: 2.70, preSplit: true },
+  { exDate: "2025-07-21", payDate: "2025-08-08", amount: 0.36, preSplit: false },
+  { exDate: "2026-01-22", payDate: "2026-02-11", amount: 1.00, preSplit: false },
+];
+
+// 未來預估股利 (拆後每股, 每年兩次: 1月和7月除息)
+const FUTURE_DIV_PER_SHARE = 0.55;
+
+// ===== 工具函數 =====
+const tradingDays = Object.keys(PRICES).sort();
+const lastActualTD = tradingDays[tradingDays.length - 1];
+
+function dateStr(y, m, d) {
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function addMonths(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + n);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function findTradingDayOnOrAfter(target) {
+  // 在實際資料中找
+  for (const td of tradingDays) {
+    if (td >= target) return { date: td, projected: false };
+  }
+  // 超出實際資料，回傳目標日期本身（跳過週末）
+  let d = new Date(target + 'T00:00:00');
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() + 1);
+  }
+  const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return { date: ds, projected: true };
+}
+
+// 計算月報酬率（用於推估未來價格）
+function calcMonthlyGrowthRate() {
+  // 從 2024-04-16 到最後可用資料的總報酬
+  const buyPrice = PRICES[BUY_DATE]; // 155.65 (拆前)
+  const lastPrice = PRICES[lastActualTD]; // 76.00 (拆後)
+  const lastPriceEquiv = lastPrice * SPLIT_RATIO; // 等效拆前價格 = 304.00
+
+  // 計算已收股利（以拆前每股為基準）
+  // 拆前股利: 1.00 + 2.70 = 3.70
+  // 拆後股利: (0.36 + 1.00) * 4 = 5.44 等效
+  // 注意：除息後股價會下跌，所以股利不重複算在價格裡
+  // 但因為我們用的是實際價格（已包含除息跌價），股利是額外收入
+  const totalDivPerOrigShare = 1.00 + 2.70 + (0.36 + 1.00) * SPLIT_RATIO;
+
+  // 計算月份數
+  const startD = new Date(BUY_DATE);
+  const endD = new Date(lastActualTD);
+  const months = (endD.getFullYear() - startD.getFullYear()) * 12 + (endD.getMonth() - startD.getMonth());
+
+  // 總報酬率
+  const totalReturn = (lastPriceEquiv + totalDivPerOrigShare) / buyPrice;
+  // 月化報酬率
+  const monthlyRate = Math.pow(totalReturn, 1 / months) - 1;
+  return monthlyRate;
+}
+
+// 取得價格（實際或推估）
+let projectedPrices = {};
+let monthlyGrowth = null;
+
+function getPrice(dateStr) {
+  if (PRICES[dateStr] !== undefined) return { price: PRICES[dateStr], projected: false };
+  if (projectedPrices[dateStr] !== undefined) return { price: projectedPrices[dateStr], projected: true };
+
+  if (!monthlyGrowth) monthlyGrowth = calcMonthlyGrowthRate();
+
+  // 找最近的已知價格
+  const allDates = [...tradingDays, ...Object.keys(projectedPrices)].sort();
+  let lastKnown = null, lastKnownPrice = null;
+  for (const d of allDates) {
+    if (d <= dateStr) {
+      lastKnown = d;
+      lastKnownPrice = PRICES[d] || projectedPrices[d];
+    }
+  }
+
+  if (!lastKnown) return { price: PRICES[lastActualTD], projected: true };
+
+  // 計算天數差
+  const d1 = new Date(lastKnown);
+  const d2 = new Date(dateStr);
+  const daysDiff = (d2 - d1) / (1000 * 60 * 60 * 24);
+  const dailyRate = Math.pow(1 + monthlyGrowth, 1/30) - 1;
+  const projPrice = Math.round(lastKnownPrice * Math.pow(1 + dailyRate, daysDiff) * 100) / 100;
+  projectedPrices[dateStr] = projPrice;
+  return { price: projPrice, projected: true };
+}
+
+// ===== 月付金額計算 =====
+const PMT = LOAN * MONTHLY_RATE * Math.pow(1 + MONTHLY_RATE, PERIODS) / (Math.pow(1 + MONTHLY_RATE, PERIODS) - 1);
+
+// ===== 主模擬 =====
+function simulate() {
+  const buyPrice = PRICES[BUY_DATE];
+  const buyCostPerShare = buyPrice * (1 + BUY_COMM);
+  let shares = Math.floor(LOAN / buyCostPerShare);
+  let cash = LOAN - shares * buyCostPerShare;
+  const initialShares = shares;
+  const initialBuyComm = shares * buyPrice * BUY_COMM;
+
+  let remainingLoan = LOAN;
+  let splitApplied = false;
+  let totalInterest = 0;
+  let totalSellCost = 0;
+  let totalDividends = 0;
+  let totalBuyComm = initialBuyComm;
+  let lastPayDate = BUY_DATE;
+  const results = [];
+  const divResults = [];
+
+  // 追蹤除息前持股數（用於計算股利）
+  let processedDivs = new Set();
+
+  for (let i = 1; i <= PERIODS; i++) {
+    // 計算目標日期
+    const targetPayDate = addMonths(BUY_DATE, i);
+    const payMonth = new Date(targetPayDate);
+    const targetSellDate = dateStr(payMonth.getFullYear(), payMonth.getMonth() + 1, 13);
+
+    // 找實際交易日
+    const sellInfo = findTradingDayOnOrAfter(targetSellDate);
+    const payInfo = findTradingDayOnOrAfter(targetPayDate);
+    let sellDate = sellInfo.date;
+    let payDate = payInfo.date;
+
+    // 確保賣股日在還款日之前或同一天
+    if (sellDate > payDate) sellDate = payDate;
+
+    // 檢查分割（在賣股前）
+    if (!splitApplied && sellDate >= SPLIT_DATE) {
+      shares *= SPLIT_RATIO;
+      splitApplied = true;
+    }
+
+    // 處理股利事件（在上次還款日和本次還款日之間）
+    let events = [];
+    for (const div of DIVIDENDS) {
+      if (processedDivs.has(div.exDate)) continue;
+      if (div.exDate > lastPayDate && div.exDate <= payDate) {
+        // 除息日在這個區間，計算股利
+        const divShares = shares; // 除息日前持股
+        const divAmount = divShares * div.amount;
+        totalDividends += divAmount;
+
+        // 判斷是否直接還款或再投入
+        const daysToPayment = Math.abs((new Date(payDate) - new Date(div.payDate)) / (1000*60*60*24));
+        const payDateObj = new Date(payDate);
+        const divPayObj = new Date(div.payDate);
+
+        let action, boughtShares = 0, buyPriceDiv = 0;
+        if (div.payDate === payDate || daysToPayment <= 1) {
+          // 用來還款
+          cash += divAmount;
+          action = "用於還款";
+        } else {
+          // 再投入買股
+          const buyDateInfo = findTradingDayOnOrAfter(div.payDate);
+          const pInfo = getPrice(buyDateInfo.date);
+          buyPriceDiv = pInfo.price;
+          const buyCost = buyPriceDiv * (1 + BUY_COMM);
+          boughtShares = Math.floor(divAmount / buyCost);
+          const spentOnBuy = boughtShares * buyCost;
+          const buyCommission = boughtShares * buyPriceDiv * BUY_COMM;
+          totalBuyComm += buyCommission;
+          shares += boughtShares;
+          cash += (divAmount - spentOnBuy); // 剩餘零頭加入現金
+          action = "再投入買股";
+        }
+        processedDivs.add(div.exDate);
+        events.push({ type: 'div', exDate: div.exDate });
+        divResults.push({
+          exDate: div.exDate, payDate: div.payDate,
+          amount: div.amount, shares: divShares, total: divAmount,
+          action, boughtShares, buyPrice: buyPriceDiv
+        });
+      }
+    }
+
+    // 未來股利推估（超出已知股利資料後）
+    if (payDate > "2026-07-01") {
+      const payYear = parseInt(payDate.substring(0, 4));
+      const payMonthNum = parseInt(payDate.substring(5, 7));
+      // 每年 1月和 7月除息
+      for (const divMonth of [1, 7]) {
+        const futDivExDate = dateStr(payYear, divMonth, 20);
+        if (!processedDivs.has(futDivExDate) && futDivExDate > lastPayDate && futDivExDate <= payDate) {
+          const divAmount = shares * FUTURE_DIV_PER_SHARE;
+          totalDividends += divAmount;
+          // 再投入
+          const buyDateInfo = findTradingDayOnOrAfter(dateStr(payYear, divMonth === 1 ? 2 : 8, 10));
+          const pInfo = getPrice(buyDateInfo.date);
+          const buyCost = pInfo.price * (1 + BUY_COMM);
+          const boughtShares = Math.floor(divAmount / buyCost);
+          totalBuyComm += boughtShares * pInfo.price * BUY_COMM;
+          shares += boughtShares;
+          cash += (divAmount - boughtShares * buyCost);
+          processedDivs.add(futDivExDate);
+          events.push({ type: 'div', exDate: futDivExDate });
+          divResults.push({
+            exDate: futDivExDate, payDate: buyDateInfo.date,
+            amount: FUTURE_DIV_PER_SHARE, shares: shares - boughtShares, total: divAmount,
+            action: "再投入買股(推估)", boughtShares, buyPrice: pInfo.price
+          });
+        }
+      }
+    }
+
+    // 貸款攤還計算
+    const interest = remainingLoan * MONTHLY_RATE;
+    const principal = PMT - interest;
+    totalInterest += interest;
+
+    // 取得賣出價格
+    const sellPriceInfo = getPrice(sellDate);
+    const sellPrice = sellPriceInfo.price;
+    const isProjected = sellPriceInfo.projected;
+
+    // 計算需賣出股數
+    const netPerShare = sellPrice * (1 - SELL_COMM - SELL_TAX);
+    const amountNeeded = PMT - cash;
+    let sharesToSell = 0;
+    if (amountNeeded > 0) {
+      sharesToSell = Math.ceil(amountNeeded / netPerShare);
+      if (sharesToSell > shares) sharesToSell = shares;
+    }
+
+    // 執行賣出
+    const sellProceeds = sharesToSell * sellPrice;
+    const sellCost = sellProceeds * (SELL_COMM + SELL_TAX);
+    const netProceeds = sellProceeds - sellCost;
+    totalSellCost += sellCost;
+    shares -= sharesToSell;
+    cash += netProceeds;
+
+    // 還款
+    cash -= PMT;
+    remainingLoan -= principal;
+    if (remainingLoan < 0.01) remainingLoan = 0;
+
+    // 還款日股價和市值
+    const payPriceInfo = getPrice(payDate);
+    const payPrice = payPriceInfo.price;
+    const marketValue = shares * payPrice;
+    const netPosition = marketValue + cash - remainingLoan;
+
+    // 判斷分割事件
+    if (events.length === 0 && !splitApplied && i > 1) { /* no event */ }
+    const hasSplit = (splitApplied && results.length > 0 && !results[results.length-1].splitApplied);
+    if (hasSplit) events.push({ type: 'split' });
+
+    results.push({
+      period: i,
+      payDate, sellDate,
+      sellPrice, sharesToSell, sellCost, netProceeds,
+      payment: PMT, principal, interest,
+      remainingLoan, cash, shares,
+      payPrice, marketValue, netPosition,
+      isProjected, events,
+      splitApplied
+    });
+    lastPayDate = payDate;
+  }
+
+  return {
+    results, divResults,
+    initialShares, initialBuyComm, buyPrice,
+    totalInterest, totalSellCost, totalBuyComm, totalDividends,
+    monthlyPayment: PMT
+  };
+}
+
+// ===== 數字格式化 =====
+function fmt(n, dec = 0) {
+  return n.toLocaleString('zh-TW', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+// ===== 渲染 =====
+function render() {
+  const sim = simulate();
+  const r = sim.results;
+  const last = r[r.length - 1];
+
+  // 總成本
+  const totalCosts = sim.totalInterest + sim.totalSellCost + sim.totalBuyComm;
+  // 最終資產 = 剩餘股票市值 + 剩餘現金
+  const finalAssets = last.marketValue + last.cash;
+  // 淨損益 = 最終資產 - 總成本（利息+交易成本）
+  const profitLoss = finalAssets - totalCosts;
+  const isProfit = profitLoss >= 0;
+
+  // 初始買入資訊
+  const splitNote = `(拆後 ${sim.initialShares * SPLIT_RATIO} 股)`;
+
+  // 參數區
+  document.getElementById('params').innerHTML = `
+    <div class="param-card"><div class="label">貸款金額</div><div class="value">NT$${fmt(LOAN)}</div></div>
+    <div class="param-card"><div class="label">年利率</div><div class="value">${(ANNUAL_RATE*100).toFixed(2)}%</div></div>
+    <div class="param-card"><div class="label">期數</div><div class="value">${PERIODS} 期</div></div>
+    <div class="param-card"><div class="label">每月還款</div><div class="value">NT$${fmt(sim.monthlyPayment, 0)}</div></div>
+    <div class="param-card"><div class="label">買入日期</div><div class="value">${BUY_DATE}</div></div>
+    <div class="param-card"><div class="label">買入價格</div><div class="value">NT$${fmt(sim.buyPrice, 2)}</div></div>
+    <div class="param-card"><div class="label">買入股數</div><div class="value">${fmt(sim.initialShares)} 股 ${splitNote}</div></div>
+    <div class="param-card"><div class="label">買入手續費</div><div class="value">NT$${fmt(sim.initialBuyComm, 0)}</div></div>
+  `;
+
+  // 判定
+  const verdictEl = document.getElementById('verdict');
+  verdictEl.className = `verdict ${isProfit ? 'profit' : 'loss'}`;
+  verdictEl.innerHTML = isProfit
+    ? `策略結果：獲利 NT$${fmt(profitLoss)} (投資報酬率 ${(profitLoss/LOAN*100).toFixed(1)}%)`
+    : `策略結果：虧損 NT$${fmt(Math.abs(profitLoss))} (投資報酬率 ${(profitLoss/LOAN*100).toFixed(1)}%)`;
+
+  // 摘要
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-card"><div class="label">總還款金額</div><div class="value">NT$${fmt(sim.monthlyPayment * PERIODS)}</div></div>
+    <div class="summary-card"><div class="label">總利息支出</div><div class="value loss">NT$${fmt(sim.totalInterest)}</div></div>
+    <div class="summary-card"><div class="label">總賣出交易成本</div><div class="value loss">NT$${fmt(sim.totalSellCost)}</div></div>
+    <div class="summary-card"><div class="label">總買入手續費</div><div class="value loss">NT$${fmt(sim.totalBuyComm)}</div></div>
+    <div class="summary-card"><div class="label">總股利收入</div><div class="value profit">NT$${fmt(sim.totalDividends)}</div></div>
+    <div class="summary-card"><div class="label">最終剩餘股數</div><div class="value">${fmt(last.shares)} 股</div></div>
+    <div class="summary-card"><div class="label">最終股票市值</div><div class="value">NT$${fmt(last.marketValue)}</div></div>
+    <div class="summary-card"><div class="label">最終剩餘現金</div><div class="value">NT$${fmt(last.cash)}</div></div>
+    <div class="summary-card"><div class="label">總成本(利息+交易)</div><div class="value loss">NT$${fmt(totalCosts)}</div></div>
+    <div class="summary-card"><div class="label">最終淨資產</div><div class="value ${isProfit ? 'profit' : 'loss'}">NT$${fmt(finalAssets)}</div></div>
+    <div class="summary-card"><div class="label">淨損益</div><div class="value ${isProfit ? 'profit' : 'loss'}">NT$${fmt(profitLoss)}</div></div>
+  `;
+
+  // 計算實際資料的最後一期
+  let lastActualPeriod = 0;
+  for (const row of r) {
+    if (!row.isProjected) lastActualPeriod = row.period;
+  }
+
+  // 截至實際資料的淨損益
+  const laRow = r[lastActualPeriod - 1];
+  const laInterest = r.slice(0, lastActualPeriod).reduce((s, x) => s + x.interest, 0);
+  const laSellCost = r.slice(0, lastActualPeriod).reduce((s, x) => s + x.sellCost, 0);
+  const laActualPL = laRow.marketValue + laRow.cash - laRow.remainingLoan - laInterest - laSellCost - sim.initialBuyComm;
+
+  const growthRate = monthlyGrowth || calcMonthlyGrowthRate();
+  const annualRate = (Math.pow(1 + growthRate, 12) - 1) * 100;
+
+  // 備註
+  document.getElementById('noteArea').innerHTML = `
+    <strong>說明：</strong><br>
+    1. 第 1~${lastActualPeriod} 期使用 TWSE 實際交易價格（未調整），第 ${lastActualPeriod + 1}~84 期使用歷史報酬率推估<br>
+    2. 0050 於 2025-06-18 進行 1拆4 分割，表中價格為實際交易價格<br>
+    3. 賣出成本 = 手續費 0.1425% + 證交稅 0.1%；買入成本 = 手續費 0.1425%<br>
+    4. 股利發放日離還款日超過2天，一律再投入購買 0050<br>
+    5. 推估月報酬率 = ${(growthRate * 100).toFixed(2)}%（年化 ${annualRate.toFixed(1)}%），基於前 ${lastActualPeriod} 個月實際總報酬<br>
+    6. <span style="color:#888;font-style:italic">斜體灰色</span> 列為推估資料<br>
+    <br>
+    <strong>截至實際資料 (第 ${lastActualPeriod} 期, ${laRow.payDate})：</strong><br>
+    剩餘貸款 NT$${fmt(laRow.remainingLoan)} ｜ 持有 ${fmt(laRow.shares)} 股 ｜ 市值 NT$${fmt(laRow.marketValue)} ｜ 淨資產 NT$${fmt(laRow.netPosition)}<br>
+    <span style="color:var(--green);font-weight:600">以實際資料計算，目前淨損益 = NT$${fmt(laActualPL)}（含已付利息與交易成本）</span><br>
+    <br>
+    <strong style="color:var(--red)">注意：</strong>
+    推估年化報酬率 ${annualRate.toFixed(1)}% 是基於 2024/04~2026/03 的歷史表現，此期間台股表現異常強勁。
+    長期年化報酬率通常在 8~12% 左右。以 10% 年化報酬率推估，最終結果會保守許多。
+    此試算僅供參考，不構成投資建議。
+  `;
+
+  // 表頭
+  document.getElementById('thead').innerHTML = `<tr>
+    <th>期數</th><th>還款日</th><th>賣股日</th><th>賣出價</th><th>賣出股數</th>
+    <th>交易成本</th><th>月付金額</th><th>本金</th><th>利息</th>
+    <th>剩餘貸款</th><th>留存現金</th><th>持有股數</th>
+    <th>還款日股價</th><th>股票市值</th><th>淨資產</th>
+  </tr>`;
+
+  // 表格內容
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  for (const row of r) {
+    const tr = document.createElement('tr');
+    if (row.isProjected) tr.className = 'projected';
+
+    let eventTags = '';
+    for (const ev of row.events) {
+      if (ev.type === 'split') eventTags += '<span class="event-tag split">1:4 分割</span>';
+      if (ev.type === 'div') eventTags += '<span class="event-tag div">配息</span>';
+    }
+    if (row.isProjected && row.period === r.find(x => x.isProjected)?.period) {
+      eventTags += '<span class="event-tag proj">推估</span>';
+    }
+
+    tr.innerHTML = `
+      <td>${row.period}${eventTags}</td>
+      <td>${row.payDate}</td>
+      <td>${row.sellDate}</td>
+      <td>${fmt(row.sellPrice, 2)}</td>
+      <td>${fmt(row.sharesToSell)}</td>
+      <td>${fmt(row.sellCost, 0)}</td>
+      <td>${fmt(row.payment, 0)}</td>
+      <td>${fmt(row.principal, 0)}</td>
+      <td>${fmt(row.interest, 0)}</td>
+      <td>${fmt(row.remainingLoan, 0)}</td>
+      <td>${fmt(row.cash, 0)}</td>
+      <td>${fmt(row.shares)}</td>
+      <td>${fmt(row.payPrice, 2)}</td>
+      <td>${fmt(row.marketValue, 0)}</td>
+      <td style="color: ${row.netPosition >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:600">${fmt(row.netPosition, 0)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // 股利明細
+  const divBody = document.getElementById('divBody');
+  divBody.innerHTML = '';
+  for (const d of sim.divResults) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center">${d.exDate}</td>
+      <td style="text-align:center">${d.payDate}</td>
+      <td>${fmt(d.amount, 2)}</td>
+      <td>${fmt(d.shares)}</td>
+      <td>${fmt(d.total, 0)}</td>
+      <td style="text-align:center">${d.action}</td>
+      <td>${d.boughtShares > 0 ? fmt(d.boughtShares) : '-'}</td>
+      <td>${d.buyPrice > 0 ? fmt(d.buyPrice, 2) : '-'}</td>
+    `;
+    divBody.appendChild(tr);
+  }
+}
+
+// 執行
+render();
+</script>
+</body>
+</html>
