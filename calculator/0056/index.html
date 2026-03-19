@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0056 借貸投資回測試算 — 借貸投資策略研究</title>
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="../../assets/css/components.css">
+</head>
+<body>
+<nav class="nav">
+  <a href="../../">首頁</a>
+  <a href="../0050/">0050</a>
+  <a href="../0056/" class="active">0056</a>
+  <a href="../00631L/">00631L</a>
+  <a href="../00679B/">00679B</a>
+  <a href="../compare/">比較</a>
+</nav>
+
+<h1>信貸買 0056 回測試算</h1>
+<div class="subtitle">元大高股息 — 以 2024-04-16 撥款日為起點，全額買入 0056，逐月賣股還款</div>
+
+<div class="params" id="params"></div>
+<div class="verdict" id="verdict"></div>
+<div class="summary-grid" id="summary"></div>
+
+<div class="note" id="noteArea"></div>
+
+<div class="section-title">逐月明細表</div>
+<div class="table-wrap">
+  <table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div id="divSection">
+  <div class="section-title">股利事件明細</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>除息日</th><th>發放日</th><th>每股股利</th><th>持股數</th><th>股利總額</th><th>處理方式</th><th>買入股數</th><th>買入價格</th></tr></thead>
+      <tbody id="divBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">資料來源：台灣證券交易所 (TWSE) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+
+<script src="../../assets/js/financial-math.js"></script>
+<script src="../../assets/js/data-loader.js"></script>
+<script src="../../assets/js/backtest-engine.js"></script>
+<script src="../../assets/js/calculator-renderer.js"></script>
+<script>
+Forcast.DataLoader.setBasePath('../../');
+
+var CONFIG = {
+  loan: { amount: 1500000, annualRate: 0.0423, periods: 84 },
+  trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
+  buyDate: "2024-04-16",
+  sellDayOfMonth: 13,
+  dividendStrategy: "mixed",
+  projectionRate: null,
+  futureDivPerShare: 0.87,
+  futureDivMonths: [1, 4, 7, 10]
+};
+
+var PAGE_CONFIG = {
+  ticker: '0056',
+  name: '元大高股息',
+  loan: CONFIG.loan,
+  buyDate: CONFIG.buyDate,
+  corporateActions: [],
+  hasDividends: true,
+  notes: [
+    '0056 於 2023 年從年配改為季配息',
+    '高股息 ETF 的配息可能覆蓋部分月還款，降低每月賣股壓力'
+  ],
+  warnings: []
+};
+
+async function init() {
+  try {
+    var prices = await Forcast.DataLoader.loadPrices('0056');
+    var dividends = await Forcast.DataLoader.loadDividends('0056');
+    var actions = await Forcast.DataLoader.loadCorporateActions('0056');
+    PAGE_CONFIG.corporateActions = actions;
+    var sim = Forcast.BacktestEngine.simulate(CONFIG, prices, dividends, actions);
+    Forcast.CalculatorRenderer.render(sim, PAGE_CONFIG);
+  } catch (e) {
+    console.error('初始化失敗:', e);
+  }
+}
+init();
+</script>
+</body>
+</html>

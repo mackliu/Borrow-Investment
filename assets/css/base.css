@@ -1,0 +1,92 @@
+/* ===== 基礎樣式 ===== */
+:root {
+  --green: #0a8f3c;
+  --red: #d32f2f;
+  --blue: #1565c0;
+  --bg: #f5f7fa;
+  --card: #fff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, "Microsoft JhengHei", sans-serif;
+  background: var(--bg);
+  color: #333;
+  padding: 16px;
+}
+
+h1 {
+  text-align: center;
+  margin: 16px 0 8px;
+  font-size: 1.5em;
+}
+
+.subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 0.9em;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 24px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #37474f;
+}
+
+.note {
+  background: #fff8e1;
+  border-left: 4px solid #ffc107;
+  padding: 12px;
+  margin: 16px 0;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.footer {
+  text-align: center;
+  color: #999;
+  font-size: 0.8em;
+  margin-top: 30px;
+}
+
+/* ===== 導覽列 ===== */
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  padding: 12px 8px;
+  background: #37474f;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.nav a {
+  color: #cfd8dc;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav a:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.nav a.active {
+  background: #fff;
+  color: #37474f;
+  font-weight: 600;
+}
+
+/* ===== 響應式 ===== */
+@media (max-width: 768px) {
+  .params { grid-template-columns: 1fr 1fr; }
+  table { font-size: 0.72em; }
+}

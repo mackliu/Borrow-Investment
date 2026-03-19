@@ -1,0 +1,212 @@
+[
+  {
+    "exDate": "2017-08-23",
+    "payDate": null,
+    "amount": 0.46,
+    "type": "cash"
+  },
+  {
+    "exDate": "2017-11-23",
+    "payDate": null,
+    "amount": 0.28,
+    "type": "cash"
+  },
+  {
+    "exDate": "2018-03-06",
+    "payDate": null,
+    "amount": 0.25,
+    "type": "cash"
+  },
+  {
+    "exDate": "2018-05-23",
+    "payDate": null,
+    "amount": 0.21,
+    "type": "cash"
+  },
+  {
+    "exDate": "2018-08-22",
+    "payDate": null,
+    "amount": 0.27,
+    "type": "cash"
+  },
+  {
+    "exDate": "2018-11-22",
+    "payDate": null,
+    "amount": 0.24,
+    "type": "cash"
+  },
+  {
+    "exDate": "2019-03-05",
+    "payDate": null,
+    "amount": 0.25,
+    "type": "cash"
+  },
+  {
+    "exDate": "2019-05-22",
+    "payDate": null,
+    "amount": 0.26,
+    "type": "cash"
+  },
+  {
+    "exDate": "2019-08-21",
+    "payDate": null,
+    "amount": 0.28,
+    "type": "cash"
+  },
+  {
+    "exDate": "2019-11-22",
+    "payDate": null,
+    "amount": 0.25,
+    "type": "cash"
+  },
+  {
+    "exDate": "2020-02-21",
+    "payDate": null,
+    "amount": 0.23,
+    "type": "cash"
+  },
+  {
+    "exDate": "2020-05-19",
+    "payDate": null,
+    "amount": 0.16,
+    "type": "cash"
+  },
+  {
+    "exDate": "2020-08-18",
+    "payDate": null,
+    "amount": 0.17,
+    "type": "cash"
+  },
+  {
+    "exDate": "2020-11-17",
+    "payDate": null,
+    "amount": 0.2,
+    "type": "cash"
+  },
+  {
+    "exDate": "2021-02-25",
+    "payDate": null,
+    "amount": 0.21,
+    "type": "cash"
+  },
+  {
+    "exDate": "2021-05-18",
+    "payDate": null,
+    "amount": 0.22,
+    "type": "cash"
+  },
+  {
+    "exDate": "2021-08-17",
+    "payDate": null,
+    "amount": 0.22,
+    "type": "cash"
+  },
+  {
+    "exDate": "2021-11-16",
+    "payDate": null,
+    "amount": 0.22,
+    "type": "cash"
+  },
+  {
+    "exDate": "2022-02-22",
+    "payDate": null,
+    "amount": 0.23,
+    "type": "cash"
+  },
+  {
+    "exDate": "2022-05-18",
+    "payDate": null,
+    "amount": 0.27,
+    "type": "cash"
+  },
+  {
+    "exDate": "2022-08-16",
+    "payDate": null,
+    "amount": 0.29,
+    "type": "cash"
+  },
+  {
+    "exDate": "2022-11-16",
+    "payDate": null,
+    "amount": 0.33,
+    "type": "cash"
+  },
+  {
+    "exDate": "2023-02-16",
+    "payDate": null,
+    "amount": 0.31,
+    "type": "cash"
+  },
+  {
+    "exDate": "2023-05-17",
+    "payDate": null,
+    "amount": 0.29,
+    "type": "cash"
+  },
+  {
+    "exDate": "2023-08-16",
+    "payDate": null,
+    "amount": 0.28,
+    "type": "cash"
+  },
+  {
+    "exDate": "2023-11-16",
+    "payDate": null,
+    "amount": 0.29,
+    "type": "cash"
+  },
+  {
+    "exDate": "2024-02-27",
+    "payDate": null,
+    "amount": 0.31,
+    "type": "cash"
+  },
+  {
+    "exDate": "2024-05-17",
+    "payDate": null,
+    "amount": 0.34,
+    "type": "cash"
+  },
+  {
+    "exDate": "2024-08-16",
+    "payDate": null,
+    "amount": 0.34,
+    "type": "cash"
+  },
+  {
+    "exDate": "2024-11-18",
+    "payDate": null,
+    "amount": 0.34,
+    "type": "cash"
+  },
+  {
+    "exDate": "2025-02-21",
+    "payDate": null,
+    "amount": 0.3,
+    "type": "cash"
+  },
+  {
+    "exDate": "2025-05-22",
+    "payDate": null,
+    "amount": 0.32,
+    "type": "cash"
+  },
+  {
+    "exDate": "2025-08-21",
+    "payDate": null,
+    "amount": 0.28,
+    "type": "cash"
+  },
+  {
+    "exDate": "2025-11-21",
+    "payDate": null,
+    "amount": 0.28,
+    "type": "cash"
+  },
+  {
+    "exDate": "2026-02-26",
+    "payDate": null,
+    "amount": 0.28,
+    "type": "cash"
+  }
+]

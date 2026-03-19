@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>00631L 借貸投資回測試算 — 借貸投資策略研究</title>
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="../../assets/css/components.css">
+</head>
+<body>
+<nav class="nav">
+  <a href="../../">首頁</a>
+  <a href="../0050/">0050</a>
+  <a href="../0056/">0056</a>
+  <a href="../00631L/" class="active">00631L</a>
+  <a href="../00679B/">00679B</a>
+  <a href="../compare/">比較</a>
+</nav>
+
+<h1>信貸買 00631L 回測試算</h1>
+<div class="subtitle">元大台灣50正2 — 以 2024-04-16 撥款日為起點，全額買入 00631L，逐月賣股還款</div>
+
+<div class="params" id="params"></div>
+<div class="verdict" id="verdict"></div>
+<div class="summary-grid" id="summary"></div>
+
+<div class="note" id="noteArea"></div>
+
+<div class="section-title">逐月明細表</div>
+<div class="table-wrap">
+  <table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div id="divSection" style="display:none">
+  <div class="section-title">股利事件明細</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>除息日</th><th>發放日</th><th>每股股利</th><th>持股數</th><th>股利總額</th><th>處理方式</th><th>買入股數</th><th>買入價格</th></tr></thead>
+      <tbody id="divBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">資料來源：台灣證券交易所 (TWSE) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+
+<script src="../../assets/js/financial-math.js"></script>
+<script src="../../assets/js/data-loader.js"></script>
+<script src="../../assets/js/backtest-engine.js"></script>
+<script src="../../assets/js/calculator-renderer.js"></script>
+<script>
+Forcast.DataLoader.setBasePath('../../');
+
+var CONFIG = {
+  loan: { amount: 1500000, annualRate: 0.0423, periods: 84 },
+  trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
+  buyDate: "2024-04-16",
+  sellDayOfMonth: 13,
+  dividendStrategy: "mixed",
+  projectionRate: null,
+  futureDivPerShare: 0,
+  futureDivMonths: []
+};
+
+var PAGE_CONFIG = {
+  ticker: '00631L',
+  name: '元大台灣50正2',
+  loan: CONFIG.loan,
+  buyDate: CONFIG.buyDate,
+  corporateActions: [],
+  hasDividends: false,
+  notes: [
+    '00631L 為槓桿型 ETF，不配發股利',
+    '槓桿 ETF 存在波動衰減（volatility decay）風險，長期持有可能偏離指數報酬'
+  ],
+  warnings: [
+    '⚠ 高風險警告：槓桿 ETF + 信用貸款 = 雙重槓桿，波動幅度極大',
+    '⚠ 槓桿型 ETF 不適合長期持有，借貸投資槓桿 ETF 的風險極高，可能導致嚴重虧損'
+  ]
+};
+
+async function init() {
+  try {
+    var prices = await Forcast.DataLoader.loadPrices('00631L');
+    var dividends = await Forcast.DataLoader.loadDividends('00631L');
+    var actions = await Forcast.DataLoader.loadCorporateActions('00631L');
+    PAGE_CONFIG.corporateActions = actions;
+    var sim = Forcast.BacktestEngine.simulate(CONFIG, prices, dividends, actions);
+    Forcast.CalculatorRenderer.render(sim, PAGE_CONFIG);
+  } catch (e) {
+    console.error('初始化失敗:', e);
+  }
+}
+init();
+</script>
+</body>
+</html>

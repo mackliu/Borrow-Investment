@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0050 借貸投資回測試算 — 借貸投資策略研究</title>
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="../../assets/css/components.css">
+</head>
+<body>
+<nav class="nav">
+  <a href="../../">首頁</a>
+  <a href="../0050/" class="active">0050</a>
+  <a href="../0056/">0056</a>
+  <a href="../00631L/">00631L</a>
+  <a href="../00679B/">00679B</a>
+  <a href="../compare/">比較</a>
+</nav>
+
+<h1>信貸買 0050 回測試算</h1>
+<div class="subtitle">元大台灣50 — 以 2024-04-16 撥款日為起點，全額買入 0050，逐月賣股還款</div>
+
+<div class="params" id="params"></div>
+<div class="verdict" id="verdict"></div>
+<div class="summary-grid" id="summary"></div>
+
+<div class="note" id="noteArea"></div>
+
+<div class="section-title">逐月明細表</div>
+<div class="table-wrap">
+  <table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div id="divSection">
+  <div class="section-title">股利事件明細</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>除息日</th><th>發放日</th><th>每股股利</th><th>持股數</th><th>股利總額</th><th>處理方式</th><th>買入股數</th><th>買入價格</th></tr></thead>
+      <tbody id="divBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">資料來源：台灣證券交易所 (TWSE) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+
+<script src="../../assets/js/financial-math.js"></script>
+<script src="../../assets/js/data-loader.js"></script>
+<script src="../../assets/js/backtest-engine.js"></script>
+<script src="../../assets/js/calculator-renderer.js"></script>
+<script>
+Forcast.DataLoader.setBasePath('../../');
+
+var CONFIG = {
+  loan: { amount: 1500000, annualRate: 0.0423, periods: 84 },
+  trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
+  buyDate: "2024-04-16",
+  sellDayOfMonth: 13,
+  dividendStrategy: "mixed",
+  projectionRate: null,
+  futureDivPerShare: 0.55,
+  futureDivMonths: [1, 7]
+};
+
+// 內嵌資料 fallback
+var EMBEDDED_PRICES = {
+  "2024-04-16": 155.65, "2024-05-13": 163.30, "2024-06-13": 178.95,
+  "2024-07-16": 196.85, "2024-08-13": 178.50, "2024-09-13": 178.40,
+  "2024-10-14": 192.30, "2024-11-13": 192.75, "2024-12-13": 195.30,
+  "2025-01-13": 194.40, "2025-02-13": 196.35, "2025-03-13": 181.10
+};
+var EMBEDDED_DIVIDENDS = [
+  { exDate: "2024-07-16", payDate: "2024-08-09", amount: 1.00 },
+  { exDate: "2025-01-17", payDate: "2025-02-20", amount: 2.70 },
+  { exDate: "2025-07-21", payDate: "2025-08-08", amount: 0.36 },
+  { exDate: "2026-01-22", payDate: "2026-02-11", amount: 1.00 }
+];
+var EMBEDDED_ACTIONS = [
+  { date: "2025-06-18", type: "split", ratio: 4 }
+];
+
+Forcast.DataLoader.setEmbeddedData('0050', EMBEDDED_PRICES, EMBEDDED_DIVIDENDS, EMBEDDED_ACTIONS);
+
+var PAGE_CONFIG = {
+  ticker: '0050',
+  name: '元大台灣50',
+  loan: CONFIG.loan,
+  buyDate: CONFIG.buyDate,
+  corporateActions: EMBEDDED_ACTIONS,
+  hasDividends: true,
+  notes: [
+    '0050 於 2025-06-18 進行 1拆4 分割，表中價格為實際交易價格',
+    '台股大盤代表，長期穩健成長'
+  ],
+  warnings: []
+};
+
+async function init() {
+  try {
+    var prices = await Forcast.DataLoader.loadPrices('0050');
+    var dividends = await Forcast.DataLoader.loadDividends('0050');
+    var actions = await Forcast.DataLoader.loadCorporateActions('0050');
+    PAGE_CONFIG.corporateActions = actions;
+    var sim = Forcast.BacktestEngine.simulate(CONFIG, prices, dividends, actions);
+    Forcast.CalculatorRenderer.render(sim, PAGE_CONFIG);
+  } catch (e) {
+    console.error('初始化失敗:', e);
+    var sim = Forcast.BacktestEngine.simulate(CONFIG, EMBEDDED_PRICES, EMBEDDED_DIVIDENDS, EMBEDDED_ACTIONS);
+    Forcast.CalculatorRenderer.render(sim, PAGE_CONFIG);
+  }
+}
+init();
+</script>
+</body>
+</html>

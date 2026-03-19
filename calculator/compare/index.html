@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多標的比較試算 — 借貸投資策略研究</title>
+<link rel="stylesheet" href="../../assets/css/base.css">
+<link rel="stylesheet" href="../../assets/css/components.css">
+<style>
+  .input-group { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 20px; }
+  .input-group label { display: block; font-size: 0.8em; color: #666; margin-bottom: 4px; }
+  .input-group input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; width: 160px; }
+  .input-group button { padding: 8px 24px; background: #37474f; color: #fff; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
+  .input-group button:hover { background: #455a64; }
+  #loading { text-align: center; padding: 40px; color: #888; font-size: 1.1em; }
+  .chart-wrap { background: var(--card); border-radius: 8px; padding: 16px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="../../">首頁</a>
+  <a href="../0050/">0050</a>
+  <a href="../0056/">0056</a>
+  <a href="../00631L/">00631L</a>
+  <a href="../00679B/">00679B</a>
+  <a href="../compare/" class="active">比較</a>
+</nav>
+
+<h1>多標的借貸投資比較</h1>
+<div class="subtitle">以相同貸款條件，同時模擬 4 個 ETF 的借貸投資表現</div>
+
+<div class="input-group" id="inputForm">
+  <div>
+    <label>貸款金額 (NT$)</label>
+    <input type="number" id="loanAmount" value="1500000" step="100000">
+  </div>
+  <div>
+    <label>年利率 (%)</label>
+    <input type="number" id="annualRate" value="4.23" step="0.01">
+  </div>
+  <div>
+    <label>期數 (月)</label>
+    <input type="number" id="periods" value="84" step="1">
+  </div>
+  <div>
+    <label>買入日期</label>
+    <input type="date" id="buyDate" value="2024-04-16">
+  </div>
+  <div>
+    <button onclick="runComparison()">開始模擬</button>
+  </div>
+</div>
+
+<div id="loading" style="display:none">載入資料並模擬中...</div>
+
+<div class="chart-wrap">
+  <canvas id="chartCanvas" height="100"></canvas>
+</div>
+
+<div class="section-title">比較摘要</div>
+<div class="table-wrap" id="compareTable"></div>
+
+<div class="note">
+  <strong>說明：</strong><br>
+  1. 所有標的使用相同的貸款條件與交易成本設定<br>
+  2. 買入日期必須為實際交易日，否則會自動調整到下一個交易日<br>
+  3. 推估使用各標的自身的歷史月報酬率，不同標的的推估報酬率不同<br>
+  4. 此比較僅供研究參考，不構成投資建議
+</div>
+
+<div class="footer">資料來源：台灣證券交易所 (TWSE/TPEx) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="../../assets/js/financial-math.js"></script>
+<script src="../../assets/js/data-loader.js"></script>
+<script src="../../assets/js/backtest-engine.js"></script>
+<script src="../../assets/js/comparison-renderer.js"></script>
+<script>
+Forcast.DataLoader.setBasePath('../../');
+
+var ETF_CONFIGS = {
+  '0050':   { futureDivPerShare: 0.55, futureDivMonths: [1, 7] },
+  '0056':   { futureDivPerShare: 0.87, futureDivMonths: [1, 4, 7, 10] },
+  '00631L': { futureDivPerShare: 0,    futureDivMonths: [] },
+  '00679B': { futureDivPerShare: 0.20, futureDivMonths: [2, 5, 8, 11] }
+};
+
+async function runComparison() {
+  var amount = parseInt(document.getElementById('loanAmount').value);
+  var rate = parseFloat(document.getElementById('annualRate').value) / 100;
+  var periods = parseInt(document.getElementById('periods').value);
+  var buyDate = document.getElementById('buyDate').value;
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('compareTable').innerHTML = '';
+
+  var tickers = ['0050', '0056', '00631L', '00679B'];
+  var results = {};
+
+  try {
+    // 並行載入所有資料
+    var dataPromises = tickers.map(function(ticker) {
+      return Promise.all([
+        Forcast.DataLoader.loadPrices(ticker),
+        Forcast.DataLoader.loadDividends(ticker),
+        Forcast.DataLoader.loadCorporateActions(ticker)
+      ]).then(function(data) {
+        return { ticker: ticker, prices: data[0], dividends: data[1], actions: data[2] };
+      });
+    });
+
+    var allData = await Promise.all(dataPromises);
+
+    // 執行模擬
+    for (var i = 0; i < allData.length; i++) {
+      var d = allData[i];
+      var etfConfig = ETF_CONFIGS[d.ticker];
+      var config = {
+        loan: { amount: amount, annualRate: rate, periods: periods },
+        trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
+        buyDate: buyDate,
+        sellDayOfMonth: 13,
+        dividendStrategy: "mixed",
+        projectionRate: null,
+        futureDivPerShare: etfConfig.futureDivPerShare,
+        futureDivMonths: etfConfig.futureDivMonths
+      };
+
+      // 確認買入日有價格資料
+      if (!d.prices[buyDate]) {
+        // 找到最近的交易日
+        var tradingDays = Object.keys(d.prices).sort();
+        var found = false;
+        for (var j = 0; j < tradingDays.length; j++) {
+          if (tradingDays[j] >= buyDate) {
+            config.buyDate = tradingDays[j];
+            found = true;
+            break;
+          }
+        }
+        if (!found) continue;
+      }
+
+      var sim = Forcast.BacktestEngine.simulate(config, d.prices, d.dividends, d.actions);
+      results[d.ticker] = { sim: sim, config: config };
+    }
+
+    Forcast.ComparisonRenderer.render(results);
+  } catch (e) {
+    console.error('比較模擬失敗:', e);
+    document.getElementById('compareTable').innerHTML = '<p style="color:var(--red)">模擬失敗：' + e.message + '</p>';
+  }
+
+  document.getElementById('loading').style.display = 'none';
+}
+
+// 頁面載入時自動執行一次
+runComparison();
+</script>
+</body>
+</html>
