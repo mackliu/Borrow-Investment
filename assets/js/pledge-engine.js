@@ -264,12 +264,15 @@
         var sellPrice = sellPriceInfo.price;
         var isProjected = sellPriceInfo.projected;
 
-        // ===== Phase 1: 賣自由股籌款（先以信貸月付金為目標） =====
-        var amountNeededForPMT = PMT - cash;
+        // ===== Phase 1: 賣自由股籌款（信貸月付金 + 預估質押利息） =====
+        var estDays = Math.round((new Date(payDate + 'T00:00:00') - new Date(lastPayDate + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+        if (estDays < 1) estDays = 30;
+        var estPledgeInterest = pledgeLoan * pledge.annualRate / 365 * estDays;
+        var amountNeededTotal = PMT + estPledgeInterest - cash;
         var sharesToSellCount = 0;
-        if (amountNeededForPMT > 0 && freeShares > 0) {
+        if (amountNeededTotal > 0 && freeShares > 0) {
           var lotSize = (sellDate < '2005-03-01') ? 1000 : 1;
-          sharesToSellCount = fm.sharesToSell(amountNeededForPMT, sellPrice, trading.sellCommission, trading.sellTax, freeShares, lotSize);
+          sharesToSellCount = fm.sharesToSell(amountNeededTotal, sellPrice, trading.sellCommission, trading.sellTax, freeShares, lotSize);
         }
         if (sharesToSellCount > freeShares) sharesToSellCount = freeShares;
 
