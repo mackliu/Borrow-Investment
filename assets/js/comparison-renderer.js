@@ -93,8 +93,12 @@
       }
 
       if (labels && window.Chart) {
+        // 銷毀舊圖表，避免 canvas 重複使用錯誤
+        if (ns.ComparisonRenderer._chart) {
+          ns.ComparisonRenderer._chart.destroy();
+        }
         var ctx = document.getElementById('chartCanvas').getContext('2d');
-        new Chart(ctx, {
+        ns.ComparisonRenderer._chart = new Chart(ctx, {
           type: 'line',
           data: { labels: labels, datasets: datasets },
           options: {
