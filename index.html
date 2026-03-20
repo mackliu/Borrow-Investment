@@ -23,9 +23,16 @@
   .tag-bond { background: #f3e5f5; color: #7b1fa2; }
   .compare-link { display: block; text-align: center; margin: 24px auto; padding: 14px 32px; background: #37474f; color: #fff; text-decoration: none; border-radius: 8px; font-size: 1.05em; font-weight: 600; max-width: 320px; transition: background 0.2s; }
   .compare-link:hover { background: #455a64; }
-  .motivation { background: var(--card); border-radius: 12px; padding: 24px; margin: 24px 0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-  .motivation h2 { font-size: 1.15em; margin-bottom: 12px; }
-  .motivation ul { padding-left: 20px; line-height: 1.8; font-size: 0.9em; color: #555; }
+  .section-card { background: var(--card); border-radius: 12px; padding: 28px; margin: 24px 0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .section-card h2 { font-size: 1.15em; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #37474f; }
+  .section-card p, .section-card li { font-size: 0.9em; color: #555; line-height: 1.8; }
+  .section-card ul, .section-card ol { padding-left: 20px; }
+  .section-card ol > li { margin-bottom: 6px; }
+  .ref-list { list-style: none; padding-left: 0; }
+  .ref-list li { padding-left: 24px; text-indent: -24px; margin-bottom: 8px; font-size: 0.85em; color: #555; line-height: 1.6; }
+  .ref-list li .ref-tag { display: inline-block; background: #eceff1; color: #546e7a; font-size: 0.8em; padding: 1px 6px; border-radius: 3px; font-weight: 600; margin-right: 4px; text-indent: 0; }
+  .method-flow { background: #f5f7fa; border-radius: 8px; padding: 16px 20px; margin: 12px 0; font-size: 0.85em; line-height: 1.7; color: #444; font-family: monospace; }
+  .highlight-box { background: #e8f5e9; border-left: 4px solid var(--green); padding: 12px 16px; border-radius: 4px; margin: 12px 0; font-size: 0.88em; line-height: 1.6; }
   .disclaimer { background: #fff3e0; border-left: 4px solid #ff9800; padding: 16px; border-radius: 4px; margin: 24px 0; font-size: 0.85em; color: #666; line-height: 1.6; }
 </style>
 </head>
@@ -76,13 +83,111 @@
 
 <a href="calculator/compare/" class="compare-link">多標的比較試算</a>
 
-<div class="motivation">
+<!-- ===== 研究背景 ===== -->
+<div class="section-card">
+  <h2>研究背景</h2>
+  <p>
+    台灣股市自 2003 年以來經歷多次景氣循環，元大台灣 50（0050）自掛牌至今年化報酬率約 8–12%，遠高於同期信用貸款利率 3–5%。這一「正利差」使得借貸投資在理論上具有可行性，尤其對於缺乏大額初始資本的年輕族群而言，信用貸款提供了一條以時間換取複利效果的途徑。
+  </p>
+  <p>
+    然而，借貸投資與一般投資存在根本性的結構差異：投資人面臨<strong>固定且不可暫停的月還款義務</strong>。當市場下跌時，必須在低點賣出持股以支付還款，導致「跌時多賣、漲時少持」的負面循環——這在學術上稱為<strong>時序風險（Sequence of Returns Risk）</strong>，是退休金提領研究中被廣泛討論的核心問題（Bengen, 1994; Pfau, 2011）。
+  </p>
+  <p>
+    當前大眾對借貸投資的討論往往流於兩極：支持者僅關注長期平均報酬與利差，反對者則以「高風險」一筆帶過。兩者都缺乏系統性的量化分析。本平台旨在填補此一研究缺口，以嚴謹的回測模擬與統計方法，提供客觀的風險與報酬評估。
+  </p>
+</div>
+
+<!-- ===== 研究動機 ===== -->
+<div class="section-card">
   <h2>研究動機</h2>
+  <p>本研究聚焦於以下四個核心問題：</p>
+  <ol>
+    <li><strong>還款可行性</strong> — 在不同市場環境下，能否透過賣股或股利穩定覆蓋每月還款？在何種條件下會發生現金流斷裂？</li>
+    <li><strong>資產成長潛力</strong> — 還款期滿後，剩餘資產的期望值與報酬率分佈為何？正報酬的機率有多高？</li>
+    <li><strong>風險量化</strong> — 最壞情境下的虧損幅度、最大回撤、以及需要自掏腰包補足還款的機率各為多少？</li>
+    <li><strong>標的比較</strong> — 市值型、高股息、槓桿型、債券型四類 ETF，在借貸投資情境下的風險報酬特性有何差異？</li>
+  </ol>
+</div>
+
+<!-- ===== 文獻探討 ===== -->
+<div class="section-card">
+  <h2>文獻探討</h2>
+  <p>本研究的理論基礎建立在以下幾個學術領域的交叉之上：</p>
+
+  <p><strong>一、槓桿投資與生命週期理論</strong></p>
+  <p>
+    Ayres & Nalebuff（2010）在 <em>Lifecycle Investing</em> 中提出，年輕投資人應在職涯早期使用適度槓桿增加股市曝險，以實現跨生命週期的時間分散化（temporal diversification）。其核心論點是：傳統的「年輕時 100% 股票、年老時逐步轉債券」策略，實際上讓大部分的市場曝險集中在中年之後（因為那時累積資本才大），反而沒有達到真正的分散。他們以 1871–2009 年美股資料的 Bootstrap 模擬驗證，適度槓桿（2:1）在 96% 的歷史期間優於傳統策略。
+  </p>
+
+  <p><strong>二、時序風險與安全提領率</strong></p>
+  <p>
+    Bengen（1994）以美國 1926–1992 年的歷史資料，研究退休金提領的安全提領率（Safe Withdrawal Rate），發現 4% 是可持續 30 年的最大初始提領率——即著名的「4% Rule」。此研究方法與本平台高度類似：同樣面對「固定現金流出 + 市場不確定性」的結構。Pfau（2011）進一步以蒙地卡羅模擬驗證了時序風險對提領策略的衝擊。
+    借貸投資的月還款可視為一種「反向退休提領」——同樣有固定現金流出（月還款 vs. 月生活費）、同樣受時序風險影響（早期下跌的破壞力遠大於晚期）。
+  </p>
+
+  <p><strong>三、Bootstrap 與金融風險管理</strong></p>
+  <p>
+    Efron（1979）提出的 Bootstrap 方法已被廣泛應用於金融風險量化。Basel III 框架中的歷史模擬法（Historical Simulation）即以此為基礎，用於計算 Value at Risk（VaR）。相較於假設常態分佈的參數法，Bootstrap 能自然保留報酬率的偏態、峰態和厚尾特性，對極端風險的估計更為準確（Davison & Hinkley, 1997）。
+  </p>
+
+  <p><strong>四、台灣 ETF 市場實證研究</strong></p>
+  <p>
+    台灣 ETF 市場自 2003 年 0050 掛牌以來快速發展，至今已有超過 200 檔 ETF。在借貸投資的語境下，不同類型 ETF 的特性差異對還款策略有顯著影響：高股息 ETF（0056）的配息可能覆蓋部分月還款；槓桿 ETF（00631L）的波動衰減（volatility decay）會在盤整市場中侵蝕淨值；債券 ETF（00679B）與股市的低相關性提供避險價值，但在升息環境中面臨利率風險。
+  </p>
+
+  <p style="margin-top:16px"><strong>參考文獻</strong></p>
+  <ul class="ref-list">
+    <li><span class="ref-tag">1</span>Ayres, I. & Nalebuff, B. (2010). <em>Lifecycle Investing: A New, Safe, and Audacious Way to Improve the Performance of Your Retirement Portfolio</em>. Basic Books.</li>
+    <li><span class="ref-tag">2</span>Bengen, W. P. (1994). Determining withdrawal rates using historical data. <em>Journal of Financial Planning</em>, 7(4), 171–180.</li>
+    <li><span class="ref-tag">3</span>Pfau, W. D. (2011). Can we predict the sustainable withdrawal rate for new retirees? <em>Journal of Financial Planning</em>, 24(8), 40–47.</li>
+    <li><span class="ref-tag">4</span>Efron, B. (1979). Bootstrap methods: Another look at the jackknife. <em>Annals of Statistics</em>, 7(1), 1–26.</li>
+    <li><span class="ref-tag">5</span>Davison, A. C. & Hinkley, D. V. (1997). <em>Bootstrap Methods and their Application</em>. Cambridge University Press.</li>
+    <li><span class="ref-tag">6</span>Basel Committee on Banking Supervision (2019). <em>Minimum capital requirements for market risk</em>. Bank for International Settlements.</li>
+  </ul>
+</div>
+
+<!-- ===== 研究方法 ===== -->
+<div class="section-card">
+  <h2>研究方法</h2>
+  <p>本平台採用<strong>歷史回測</strong>結合 <strong>Bootstrap Monte Carlo 模擬</strong>作為核心研究方法。</p>
+
+  <p><strong>一、歷史回測模型</strong></p>
+  <p>
+    以各標的 ETF 自掛牌日起的完整每日收盤價與股利資料（資料來源：FinMind API），模擬從特定日期借貸買入後逐月賣股還款的完整週期。模型涵蓋：等額本息攤還計算、交易成本（手續費 0.1425% + 證交稅 0.1%）、股利再投入、除權息處理，以及公司行動（如 0050 於 2025-06-18 的一拆四分割）。
+  </p>
+
+  <p><strong>二、未來推估：Non-parametric Bootstrap（Efron, 1979）</strong></p>
+  <p>
+    對於超出實際資料的未來期間，本平台不假設特定的報酬率分佈或成長趨勢，而是採用無母數自助抽樣法：
+  </p>
+  <div class="method-flow">
+    Step 1：從標的完整歷史計算所有月漲跌幅（百分比），構成經驗分佈<br>
+    Step 2：每次模擬從經驗分佈中有放回隨機抽取 N 個月報酬率<br>
+    Step 3：重複 5,000 次，產生 5,000 條不同的未來走勢路徑<br>
+    Step 4：依最終淨資產排序，以百分位數定義三種情境
+  </div>
+  <div class="highlight-box">
+    <strong>三情境定義：</strong>
+    樂觀 = P75（75% 的模擬結果不如此好）；
+    基準 = P50（中位數）；
+    悲觀 = P25（25% 的模擬結果不如此差）。
+    進階蒙地卡羅圖表額外顯示 P10–P90 的 80% 信心區間。
+  </div>
+
+  <p><strong>三、方法優勢</strong></p>
   <ul>
-    <li><strong>還款可行性</strong> — 在不同市場環境下，能否透過賣股或股利穩定還款？</li>
-    <li><strong>資產成長潛力</strong> — 還款期滿後，剩餘資產的預期價值與投資報酬率</li>
-    <li><strong>風險量化</strong> — 最壞情境下的虧損幅度、現金流斷裂風險</li>
-    <li><strong>標的比較</strong> — 不同性質 ETF 在借貸投資情境下的表現差異</li>
+    <li><strong>無分佈假設</strong> — 不假設報酬率為常態分佈，自然保留偏態與厚尾風險</li>
+    <li><strong>有漲有跌</strong> — 每條模擬路徑都有真實的漲跌起伏，非平滑曲線</li>
+    <li><strong>捕捉時序風險</strong> — 不同的漲跌順序會產生不同結果，如實反映借貸投資的核心風險</li>
+    <li><strong>客觀透明</strong> — 不需人為設定牛市/熊市參數，所有結果源自歷史數據</li>
+  </ul>
+
+  <p><strong>四、研究限制</strong></p>
+  <ul>
+    <li>Bootstrap 假設月報酬率獨立同分佈，忽略了動量效應與均值回歸</li>
+    <li>歷史報酬不代表未來，若市場出現前所未見的結構性變化，歷史分佈可能不適用</li>
+    <li>模型以收盤價計算，實務交易可能存在滑價與流動性影響</li>
+    <li>各標的歷史月數不同（0050 約 270 個月 vs. 00679B 約 108 個月），樣本量影響估計穩定性</li>
   </ul>
 </div>
 
