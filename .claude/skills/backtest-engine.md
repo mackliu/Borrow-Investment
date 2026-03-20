@@ -59,6 +59,44 @@ for each month in loan_period:
 - 最終淨資產、投資報酬率
 - 最大回撤、最低淨資產月份
 
+## 未來推估：Bootstrap 歷史模擬法
+
+### 方法論
+採用 Non-parametric Bootstrap Monte Carlo Simulation（Efron, 1979）：
+- **核心理念**：不預測未來，但假設未來月漲跌幅落在歷史觀測範圍內
+- **取代舊方法**：不再使用固定月報酬率（mean）或常態假設（mean ± σ），改用歷史經驗分佈抽樣
+
+### 模擬引擎架構
+
+```
+ScenarioEngine.getScenarioRates(prices, corporateActions)
+  ├─ calcHistoricalMonthlyReturns() → 從完整價格計算月報酬率陣列
+  │     ├─ 按月取最後交易日收盤價
+  │     ├─ r[m] = price[m+1] / price[m] - 1
+  │     └─ 分割月修正：r[m] = price[m+1] * splitRatio / price[m] - 1
+  ├─ calcReturnStats() → 計算 mean、stddev、count
+  └─ 回傳: { optimistic, base, pessimistic, stats, returns }
+
+Monte Carlo Worker (Web Worker, 5,000 次模擬)
+  ├─ 每次模擬：從 historicalReturns 有放回隨機抽樣 N 個月報酬率
+  ├─ 逐月計算：股價變動 → 賣股還款 → 淨資產
+  └─ 回傳百分位數：P10, P25, P50, P75, P90
+```
+
+### 三情境定義
+| 情境 | 百分位數 | 說明 |
+|------|---------|------|
+| 樂觀 | P75 | 25% 的模擬結果比這個好 |
+| 基準 | P50 | 中位數，最可能的結果 |
+| 悲觀 | P25 | 25% 的模擬結果比這個差 |
+
+### 技術參數
+- 模擬次數：5,000 次（穩定估計 P10~P90）
+- 抽樣方式：有放回隨機抽樣（Bootstrap）
+- 報酬率：月漲跌百分比（避免股價水位偏差）
+- 分割修正：0050 於 2025-06-18 一拆四，該月報酬需 × splitRatio
+- 執行環境：Web Worker 非同步，不阻塞 UI
+
 ## 資料載入規範
 
 ### 價格資料格式 (JSON)

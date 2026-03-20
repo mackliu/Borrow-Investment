@@ -17,6 +17,112 @@
 
   ns.CalculatorRenderer = {
     fmt: fmt,
+    _scenarioChart: null,
+
+    /**
+     * 渲染情境資訊面板（Bootstrap 版）
+     * @param {Object} bootstrapInfo - { stats, numSimulations, finalNetPositions }
+     * @param {string} activeScenario - 'optimistic' | 'base' | 'pessimistic'
+     */
+    renderScenarioInfo: function(bootstrapInfo, activeScenario) {
+      var el = document.getElementById('scenarioInfo');
+      if (!el) return;
+
+      var stats = bootstrapInfo.stats;
+      var finals = bootstrapInfo.finalNetPositions;
+      var numSims = bootstrapInfo.numSimulations || 5000;
+
+      var labels = { optimistic: '樂觀 P75', base: '基準 P50', pessimistic: '悲觀 P25' };
+      var keys = ['optimistic', 'base', 'pessimistic'];
+      var html = '';
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        var bold = k === activeScenario ? 'font-weight:600' : '';
+        var netStr = finals ? 'NT$' + fmt(finals[k]) : '';
+        html += '<span style="margin:0 10px;' + bold + '">' + labels[k] + (netStr ? '：' + netStr : '') + '</span>';
+      }
+      html += '<br><small>Bootstrap 模擬 ' + fmt(numSims) + ' 次 ｜ 歷史月數 ' + stats.count + ' 個月 ｜ 歷史月均報酬 ' + (stats.mean * 100).toFixed(2) + '%</small>';
+      el.innerHTML = html;
+    },
+
+    /**
+     * 渲染三情境淨資產走勢圖
+     * @param {Object} allSims - { optimistic: sim, base: sim, pessimistic: sim }
+     */
+    renderScenarioChart: function(allSims) {
+      var canvas = document.getElementById('scenarioChart');
+      if (!canvas || !window.Chart) return;
+
+      if (this._scenarioChart) {
+        this._scenarioChart.destroy();
+        this._scenarioChart = null;
+      }
+
+      var labels = allSims.base.periods.map(function(p) { return p.payDate; });
+
+      var datasets = [
+        {
+          label: '樂觀 (P75)',
+          data: allSims.optimistic.periods.map(function(p) { return Math.round(p.netPosition); }),
+          borderColor: '#2e7d32',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [6, 3],
+          pointRadius: 0,
+          tension: 0.1
+        },
+        {
+          label: '基準 (P50)',
+          data: allSims.base.periods.map(function(p) { return Math.round(p.netPosition); }),
+          borderColor: '#1565c0',
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.1
+        },
+        {
+          label: '悲觀 (P25)',
+          data: allSims.pessimistic.periods.map(function(p) { return Math.round(p.netPosition); }),
+          borderColor: '#d32f2f',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [6, 3],
+          pointRadius: 0,
+          tension: 0.1
+        }
+      ];
+
+      var ctx = canvas.getContext('2d');
+      this._scenarioChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: '淨資產走勢（三情境）', font: { size: 14 } },
+            legend: { position: 'bottom' }
+          },
+          scales: {
+            x: { ticks: { maxTicksLimit: 12, maxRotation: 45 } },
+            y: { ticks: { callback: function(v) { return 'NT$' + v.toLocaleString(); } } }
+          },
+          interaction: { mode: 'index', intersect: false }
+        }
+      });
+    },
+
+    /**
+     * 渲染完整情境結果：明細表 + 情境圖 + 情境資訊
+     * @param {Object} allSims - { optimistic: sim, base: sim, pessimistic: sim }
+     * @param {string} activeScenario - 'optimistic' | 'base' | 'pessimistic'
+     * @param {Object} pageConfig - 頁面設定
+     */
+    renderScenario: function(allSims, activeScenario, pageConfig) {
+      var activeSim = allSims[activeScenario];
+      this.render(activeSim, pageConfig);
+      this.renderScenarioChart(allSims);
+      this.renderScenarioInfo(pageConfig._bootstrapInfo, activeScenario);
+    },
 
     /**
      * 渲染試算結果
@@ -120,7 +226,13 @@
       var noteIdx = (pageConfig.notes ? pageConfig.notes.length : 0) + 2;
       noteHTML += noteIdx++ + '. 賣出成本 = 手續費 0.1425% + 證交稅 0.1%；買入成本 = 手續費 0.1425%<br>';
       noteHTML += noteIdx++ + '. 股利發放日離還款日超過2天，一律再投入購買 ' + pageConfig.ticker + '<br>';
-      noteHTML += noteIdx++ + '. 推估月報酬率 = ' + (growthRate * 100).toFixed(2) + '%（年化 ' + annualRate.toFixed(1) + '%），基於前 ' + lastActualPeriod + ' 個月實際總報酬<br>';
+
+      // 情境感知的報酬率說明
+      if (pageConfig.scenarioLabel) {
+        noteHTML += noteIdx++ + '. 推估月報酬率 = ' + (growthRate * 100).toFixed(2) + '%（年化 ' + annualRate.toFixed(1) + '%），' + pageConfig.scenarioLabel + '<br>';
+      } else {
+        noteHTML += noteIdx++ + '. 推估月報酬率 = ' + (growthRate * 100).toFixed(2) + '%（年化 ' + annualRate.toFixed(1) + '%），基於前 ' + lastActualPeriod + ' 個月實際總報酬<br>';
+      }
       noteHTML += noteIdx++ + '. <span style="color:#888;font-style:italic">斜體灰色</span> 列為推估資料<br>';
 
       noteHTML += '<br><strong>截至實際資料 (第 ' + lastActualPeriod + ' 期, ' + laRow.payDate + ')：</strong><br>';

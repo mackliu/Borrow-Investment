@@ -125,6 +125,7 @@
    * @param {string} config.lastActualDate - 最後實際資料日期（僅供參考）
    * @param {string} config.dividendStrategy - 股利策略 ("mixed")
    * @param {number|null} config.projectionRate - 指定月報酬率（null=自動計算）
+   * @param {Array<number>|null} config.projectionRateSequence - Bootstrap 月報酬率序列（優先於 projectionRate）
    * @param {number} config.futureDivPerShare - 未來推估每股配息
    * @param {Array<number>} config.futureDivMonths - 配息月份 [1, 7]
    * @param {Object} prices - flat 價格物件
@@ -142,8 +143,17 @@
 
       var tradingDays = Object.keys(prices).sort();
       var projectedPrices = {};
-      var monthlyGrowth = config.projectionRate;
-      if (monthlyGrowth === null || monthlyGrowth === undefined) {
+      var rateSequence = config.projectionRateSequence || null;
+      var projectionIdx = 0;
+      var monthlyGrowth;
+      if (rateSequence) {
+        // Bootstrap 模式：用序列平均值作為初始值和摘要值
+        var rSum = 0;
+        for (var ri = 0; ri < rateSequence.length; ri++) rSum += rateSequence[ri];
+        monthlyGrowth = rateSequence.length > 0 ? rSum / rateSequence.length : 0;
+      } else if (config.projectionRate !== null && config.projectionRate !== undefined) {
+        monthlyGrowth = config.projectionRate;
+      } else {
         monthlyGrowth = calcMonthlyGrowthRate(config, prices, dividends, corporateActions);
       }
 
@@ -185,6 +195,12 @@
 
         // 確保賣股日在還款日之前或同一天
         if (sellDate > payDate) sellDate = payDate;
+
+        // Bootstrap 模式：進入推估期間時，逐月切換報酬率
+        if (rateSequence && sellInfo.projected && projectionIdx < rateSequence.length) {
+          monthlyGrowth = rateSequence[projectionIdx];
+          projectionIdx++;
+        }
 
         // 檢查公司行動（分割等）
         var events = [];

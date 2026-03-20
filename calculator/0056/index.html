@@ -20,9 +20,21 @@
 <h1>信貸買 0056 回測試算</h1>
 <div class="subtitle">元大高股息 — 以 2024-04-16 撥款日為起點，全額買入 0056，逐月賣股還款</div>
 
+<div class="scenario-selector" id="scenarioSelector">
+  <button class="scenario-btn optimistic" data-scenario="optimistic">樂觀</button>
+  <button class="scenario-btn base active" data-scenario="base">基準</button>
+  <button class="scenario-btn pessimistic" data-scenario="pessimistic">悲觀</button>
+</div>
+<div class="scenario-info" id="scenarioInfo"></div>
+
 <div class="params" id="params"></div>
 <div class="verdict" id="verdict"></div>
 <div class="summary-grid" id="summary"></div>
+
+<div class="section-title">淨資產走勢（三情境）</div>
+<div class="chart-wrap">
+  <canvas id="scenarioChart" height="100"></canvas>
+</div>
 
 <div class="note" id="noteArea"></div>
 
@@ -44,15 +56,29 @@
   </div>
 </div>
 
-<div class="footer">資料來源：台灣證券交易所 (TWSE) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+<div class="section-title collapsible" id="monteCarloToggle">
+  進階分析：蒙地卡羅模擬 <span class="toggle-arrow" id="mcArrow">▶</span>
+</div>
+<div id="monteCarloSection" style="display:none">
+  <button id="runMonteCarlo">執行模擬 (5,000 次)</button>
+  <span id="mcProgress"></span>
+  <div class="chart-wrap"><canvas id="monteCarloChart" height="120"></canvas></div>
+  <div class="note" id="mcNote" style="display:none"></div>
+</div>
 
+<div class="footer">資料來源：台灣證券交易所 (TWSE) ｜ 未來月份以 Bootstrap 歷史模擬推算，僅供參考</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="../../assets/js/financial-math.js"></script>
 <script src="../../assets/js/data-loader.js"></script>
 <script src="../../assets/js/backtest-engine.js"></script>
 <script src="../../assets/js/calculator-renderer.js"></script>
+<script src="../../assets/js/scenario-engine.js"></script>
+<script src="../../assets/js/monte-carlo-renderer.js"></script>
 <script>
 Forcast.DataLoader.setBasePath('../../');
 
+var TICKER = '0056';
 var CONFIG = {
   loan: { amount: 1500000, annualRate: 0.0423, periods: 84 },
   trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
@@ -65,7 +91,7 @@ var CONFIG = {
 };
 
 var PAGE_CONFIG = {
-  ticker: '0056',
+  ticker: TICKER,
   name: '元大高股息',
   loan: CONFIG.loan,
   buyDate: CONFIG.buyDate,
@@ -78,18 +104,102 @@ var PAGE_CONFIG = {
   warnings: []
 };
 
+var SCENARIO_LABELS = {
+  optimistic: 'Bootstrap P75 樂觀情境，基於全歷史月報酬率 5,000 次模擬',
+  base: 'Bootstrap P50 基準情境，基於全歷史月報酬率 5,000 次模擬',
+  pessimistic: 'Bootstrap P25 悲觀情境，基於全歷史月報酬率 5,000 次模擬'
+};
+
+var _allSims = null, _bootstrapResult = null, _historicalReturns = null, _prices = null;
+
 async function init() {
   try {
-    var prices = await Forcast.DataLoader.loadPrices('0056');
-    var dividends = await Forcast.DataLoader.loadDividends('0056');
-    var actions = await Forcast.DataLoader.loadCorporateActions('0056');
+    _prices = await Forcast.DataLoader.loadPrices(TICKER);
+    var dividends = await Forcast.DataLoader.loadDividends(TICKER);
+    var actions = await Forcast.DataLoader.loadCorporateActions(TICKER);
     PAGE_CONFIG.corporateActions = actions;
-    var sim = Forcast.BacktestEngine.simulate(CONFIG, prices, dividends, actions);
-    Forcast.CalculatorRenderer.render(sim, PAGE_CONFIG);
+
+    _historicalReturns = Forcast.ScenarioEngine.calcHistoricalMonthlyReturns(_prices, actions);
+    var stats = Forcast.ScenarioEngine.calcReturnStats(_historicalReturns);
+
+    var baseSim = Forcast.BacktestEngine.simulate(
+      Object.assign({}, CONFIG, { projectionRate: stats.mean }), _prices, dividends, actions
+    );
+
+    var lastActualIdx = -1;
+    for (var j = 0; j < baseSim.periods.length; j++) {
+      if (!baseSim.periods[j].isProjected) lastActualIdx = j;
+    }
+
+    var projectedMonths = CONFIG.loan.periods - (lastActualIdx + 1);
+    var FM = Forcast.FinancialMath;
+    var monthlyLoanRate = FM.monthlyRate(CONFIG.loan.annualRate);
+    var pmt = FM.pmt(monthlyLoanRate, CONFIG.loan.periods, CONFIG.loan.amount);
+
+    var startState;
+    if (lastActualIdx >= 0) {
+      var la = baseSim.periods[lastActualIdx];
+      startState = { shares: la.shares, cash: la.cash, remainingLoan: la.remainingLoan, lastPrice: la.payPrice };
+    } else {
+      var buyPrice = _prices[CONFIG.buyDate];
+      var buyCPS = FM.buyCostPerShare(buyPrice, CONFIG.trading.buyCommission);
+      var initShares = Math.floor(CONFIG.loan.amount / buyCPS);
+      startState = { shares: initShares, cash: CONFIG.loan.amount - initShares * buyCPS, remainingLoan: CONFIG.loan.amount, lastPrice: buyPrice };
+    }
+
+    _bootstrapResult = Forcast.ScenarioEngine.runBootstrap({
+      historicalReturns: _historicalReturns, projectedMonths: projectedMonths,
+      startState: startState, pmt: pmt, monthlyLoanRate: monthlyLoanRate,
+      sellCostRate: CONFIG.trading.sellCommission + CONFIG.trading.sellTax, numSimulations: 5000
+    });
+
+    PAGE_CONFIG._bootstrapInfo = { stats: _bootstrapResult.stats, numSimulations: 5000, finalNetPositions: _bootstrapResult.finalNetPositions };
+
+    _allSims = {};
+    var scenarios = ['optimistic', 'base', 'pessimistic'];
+    for (var i = 0; i < scenarios.length; i++) {
+      var seq = _bootstrapResult.scenarios[scenarios[i]];
+      _allSims[scenarios[i]] = Forcast.BacktestEngine.simulate(
+        Object.assign({}, CONFIG, { projectionRate: null, projectionRateSequence: seq }), _prices, dividends, actions
+      );
+    }
+
+    switchScenario('base');
   } catch (e) {
     console.error('初始化失敗:', e);
   }
 }
+
+function switchScenario(scenario) {
+  PAGE_CONFIG.scenarioLabel = SCENARIO_LABELS[scenario];
+  Forcast.CalculatorRenderer.renderScenario(_allSims, scenario, PAGE_CONFIG);
+  var btns = document.querySelectorAll('.scenario-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('active', btns[i].getAttribute('data-scenario') === scenario);
+}
+
+document.getElementById('scenarioSelector').addEventListener('click', function(e) {
+  var btn = e.target.closest('.scenario-btn');
+  if (!btn || !_allSims) return;
+  switchScenario(btn.getAttribute('data-scenario'));
+});
+
+document.getElementById('monteCarloToggle').addEventListener('click', function() {
+  var section = document.getElementById('monteCarloSection');
+  var arrow = document.getElementById('mcArrow');
+  var isOpen = section.style.display !== 'none';
+  section.style.display = isOpen ? 'none' : 'block';
+  arrow.classList.toggle('open', !isOpen);
+});
+
+document.getElementById('runMonteCarlo').addEventListener('click', function() {
+  if (!_historicalReturns || !_prices) return;
+  var labels = _allSims.base.periods.map(function(p) { return p.payDate; });
+  Forcast.MonteCarloRenderer.run('monteCarloChart', {
+    loanAmount: CONFIG.loan.amount, annualRate: CONFIG.loan.annualRate,
+    buyCommission: CONFIG.trading.buyCommission, sellCommission: CONFIG.trading.sellCommission, sellTax: CONFIG.trading.sellTax
+  }, _historicalReturns, _prices[CONFIG.buyDate], labels, '../../assets/js/monte-carlo-worker.js');
+});
+
 init();
 </script>
 </body>

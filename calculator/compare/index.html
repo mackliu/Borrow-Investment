@@ -13,7 +13,6 @@
   .input-group button { padding: 8px 24px; background: #37474f; color: #fff; border: none; border-radius: 6px; font-size: 1em; cursor: pointer; }
   .input-group button:hover { background: #455a64; }
   #loading { text-align: center; padding: 40px; color: #888; font-size: 1.1em; }
-  .chart-wrap { background: var(--card); border-radius: 8px; padding: 16px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
 </style>
 </head>
 <body>
@@ -27,7 +26,7 @@
 </nav>
 
 <h1>多標的借貸投資比較</h1>
-<div class="subtitle">以相同貸款條件，同時模擬 4 個 ETF 的借貸投資表現</div>
+<div class="subtitle">以相同貸款條件，同時模擬 4 個 ETF 的借貸投資表現（使用全歷史基準報酬率）</div>
 
 <div class="input-group" id="inputForm">
   <div>
@@ -64,7 +63,7 @@
   <strong>說明：</strong><br>
   1. 所有標的使用相同的貸款條件與交易成本設定<br>
   2. 買入日期必須為實際交易日，否則會自動調整到下一個交易日<br>
-  3. 推估使用各標的自身的歷史月報酬率，不同標的的推估報酬率不同<br>
+  3. 推估使用各標的全歷史月報酬率的基準情境（mean），不同標的的推估報酬率不同<br>
   4. 此比較僅供研究參考，不構成投資建議
 </div>
 
@@ -74,6 +73,7 @@
 <script src="../../assets/js/financial-math.js"></script>
 <script src="../../assets/js/data-loader.js"></script>
 <script src="../../assets/js/backtest-engine.js"></script>
+<script src="../../assets/js/scenario-engine.js"></script>
 <script src="../../assets/js/comparison-renderer.js"></script>
 <script>
 Forcast.DataLoader.setBasePath('../../');
@@ -115,20 +115,24 @@ async function runComparison() {
     for (var i = 0; i < allData.length; i++) {
       var d = allData[i];
       var etfConfig = ETF_CONFIGS[d.ticker];
+
+      // 使用 ScenarioEngine 的 base rate 取代舊的自動計算
+      var scenarioRates = Forcast.ScenarioEngine.getScenarioRates(d.prices, d.actions);
+      var baseRate = scenarioRates.base;
+
       var config = {
         loan: { amount: amount, annualRate: rate, periods: periods },
         trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
         buyDate: buyDate,
         sellDayOfMonth: 13,
         dividendStrategy: "mixed",
-        projectionRate: null,
+        projectionRate: baseRate,
         futureDivPerShare: etfConfig.futureDivPerShare,
         futureDivMonths: etfConfig.futureDivMonths
       };
 
       // 確認買入日有價格資料
       if (!d.prices[buyDate]) {
-        // 找到最近的交易日
         var tradingDays = Object.keys(d.prices).sort();
         var found = false;
         for (var j = 0; j < tradingDays.length; j++) {

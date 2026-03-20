@@ -32,7 +32,12 @@ user_invocable: true
 - 最大回撤 (Maximum Drawdown)
 - 夏普比率 (Sharpe Ratio)
 - 波動率 (Volatility)
-- 風險值 (Value at Risk, VaR)
+- 風險值 (Value at Risk, VaR) — 以 Bootstrap Monte Carlo 模擬計算（5,000 次）
+
+### Bootstrap 統計計算
+- 歷史月報酬率的 mean、stddev、偏態、峰態
+- 百分位數估計（P10, P25, P50, P75, P90）
+- 信心區間建構（Efron, 1979 Non-parametric Bootstrap）
 
 ## 台灣市場參數
 
