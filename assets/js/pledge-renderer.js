@@ -166,15 +166,17 @@
       // 備註區
       var noteHTML = '<strong>說明（質押版）：</strong><br>';
       noteHTML += '1. Day 0 以信貸全額買入 → 全數質押（鎖定）→ 借出市值 ' + (pageConfig.pledge.ltvRatio * 100) + '% → 再買入同標的（自由股）<br>';
-      noteHTML += '2. 每月賣出自由股支付信貸月付金 + 質押利息（年利率 ' + (pageConfig.pledge.annualRate * 100).toFixed(2) + '%）<br>';
-      noteHTML += '3. 質押股不可賣出，直到還清質押借款<br>';
-      noteHTML += '4. 追繳線：維持率 ' + (pageConfig.pledge.maintenanceCallRatio * 100).toFixed(0) + '%（質押市值 / 質押借款）<br>';
+      noteHTML += '2. 每月賣出自由股支付信貸月付金 + 質押利息<br>';
+      noteHTML += '3. 質押利息 = (借款餘額 × ' + (pageConfig.pledge.annualRate * 100).toFixed(2) + '% / 365) × 本期天數<br>';
+      noteHTML += '4. 自由股不足時，若維持率 ≥ 300% 可從質押再借出現金還款（加入借款餘額）<br>';
+      noteHTML += '5. 質押股不可賣出，到期時以剩餘資產清償質押借款<br>';
+      noteHTML += '6. 停止條件：維持率 < ' + (pageConfig.pledge.maintenanceCallRatio * 100).toFixed(0) + '%（追繳）或再借出後維持率 < 250%<br>';
       if (pageConfig.notes) {
         for (var ni = 0; ni < pageConfig.notes.length; ni++) {
-          noteHTML += (ni + 5) + '. ' + pageConfig.notes[ni] + '<br>';
+          noteHTML += (ni + 7) + '. ' + pageConfig.notes[ni] + '<br>';
         }
       }
-      var noteIdx = (pageConfig.notes ? pageConfig.notes.length : 0) + 5;
+      var noteIdx = (pageConfig.notes ? pageConfig.notes.length : 0) + 7;
       if (pageConfig.scenarioLabel) {
         noteHTML += noteIdx++ + '. ' + pageConfig.scenarioLabel + '<br>';
       }
@@ -200,8 +202,8 @@
       // 表頭
       document.getElementById('thead').innerHTML = '<tr>' +
         '<th>期數</th><th>還款日</th><th>賣股日</th><th>賣出價</th><th>賣出股數</th>' +
-        '<th>交易成本</th><th>信貸月付</th><th>質押利息</th><th>月付總額</th>' +
-        '<th>剩餘信貸</th><th>現金</th><th>自由股</th><th>質押股</th>' +
+        '<th>交易成本</th><th>信貸月付</th><th>質押利息</th><th>質押再借</th><th>月付總額</th>' +
+        '<th>剩餘信貸</th><th>質押借款</th><th>現金</th><th>自由股</th><th>質押股</th>' +
         '<th>股價</th><th>總市值</th><th>維持率</th><th>淨資產</th>' +
         '</tr>';
 
@@ -226,8 +228,13 @@
           var ev = row.events[e];
           if (ev.type === 'split') eventTags += '<span class="event-tag split">1:' + (ev.ratio || splitRatio) + ' 分割</span>';
           if (ev.type === 'div') eventTags += '<span class="event-tag div">配息</span>';
+          if (ev.type === 'pledge_borrow') eventTags += '<span class="event-tag" style="background:#ff9800;color:#fff">質押+' + Math.round(ev.amount).toLocaleString() + '</span>';
         }
         if (row.isProjected && row.period === firstProjected) eventTags += '<span class="event-tag proj">推估</span>';
+
+        var borrowCell = row.pledgeBorrowed > 0
+          ? '<td style="color:#ff9800;font-weight:600">' + fmt(row.pledgeBorrowed, 0) + '</td>'
+          : '<td>-</td>';
 
         tr.innerHTML =
           '<td>' + row.period + eventTags + '</td>' +
@@ -238,8 +245,10 @@
           '<td>' + fmt(row.sellCost, 0) + '</td>' +
           '<td>' + fmt(row.payment, 0) + '</td>' +
           '<td>' + fmt(row.pledgeInterest, 0) + '</td>' +
+          borrowCell +
           '<td>' + fmt(row.totalObligation, 0) + '</td>' +
           '<td>' + fmt(row.remainingLoan, 0) + '</td>' +
+          '<td>' + fmt(row.pledgeLoan, 0) + '</td>' +
           '<td>' + fmt(row.cash, 0) + '</td>' +
           '<td>' + fmt(row.freeShares) + '</td>' +
           '<td>' + fmt(row.pledgedShares) + '</td>' +

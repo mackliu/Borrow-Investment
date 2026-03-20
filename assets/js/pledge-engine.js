@@ -9,8 +9,16 @@
  *   End: 清償質押借款，計算最終淨損益
  *
  * 停止條件：
- *   1. 自由股不足以支付月還款 → 策略失敗
- *   2. 維持率 < 133% → 追繳風險，停止模擬
+ *   1. 維持率 < 133% → 追繳風險（市場暴跌），停止模擬
+ *   2. 自由股不足且維持率 < 300% → 無法再借出，策略失敗
+ *   3. 再借出後維持率 < 250% → 風險過高，停止模擬
+ *
+ * 質押再借出規則：
+ *   當自由股不足以支付月還款時，若維持率 >= 300%，
+ *   可從質押帳戶再借出現金支付，借出金額加入質押借款餘額
+ *
+ * 質押利息計算：
+ *   (質押借款餘額 × 年利率 / 365) × 本期天數
  */
 (function() {
   var ns = window.Forcast = window.Forcast || {};
@@ -95,7 +103,6 @@
       var trading = config.trading;
       var monthlyR = fm.monthlyRate(loan.annualRate);
       var PMT = fm.pmt(monthlyR, loan.periods, loan.amount);
-      var pledgeMonthlyR = pledge.annualRate / 12;
 
       var tradingDays = Object.keys(prices).sort();
       var projectedPrices = {};
@@ -252,36 +259,19 @@
         var principal = PMT - interest;
         totalInterest += interest;
 
-        // 質押利息
-        var pledgeInterest = pledgeLoan * pledgeMonthlyR;
-        totalPledgeInterest += pledgeInterest;
-
-        // 本月總應付金額
-        var totalObligation = PMT + pledgeInterest;
-
         // 取得賣出價格
         var sellPriceInfo = getPrice(sellDate, prices, tradingDays, projectedPrices, monthlyGrowth);
         var sellPrice = sellPriceInfo.price;
         var isProjected = sellPriceInfo.projected;
 
-        // 賣出自由股
-        var amountNeeded = totalObligation - cash;
+        // ===== Phase 1: 賣自由股籌款（先以信貸月付金為目標） =====
+        var amountNeededForPMT = PMT - cash;
         var sharesToSellCount = 0;
-        if (amountNeeded > 0 && freeShares > 0) {
+        if (amountNeededForPMT > 0 && freeShares > 0) {
           var lotSize = (sellDate < '2005-03-01') ? 1000 : 1;
-          sharesToSellCount = fm.sharesToSell(amountNeeded, sellPrice, trading.sellCommission, trading.sellTax, freeShares, lotSize);
+          sharesToSellCount = fm.sharesToSell(amountNeededForPMT, sellPrice, trading.sellCommission, trading.sellTax, freeShares, lotSize);
         }
-
-        // 檢查自由股是否足夠
-        var insufficientShares = false;
-        if (amountNeeded > 0 && sharesToSellCount >= freeShares) {
-          // 賣光所有自由股，檢查是否足夠
-          sharesToSellCount = freeShares;
-          var maxProceeds = fm.sellProceeds(sellPrice, sharesToSellCount, trading.sellCommission, trading.sellTax);
-          if (maxProceeds + cash < totalObligation) {
-            insufficientShares = true;
-          }
-        }
+        if (sharesToSellCount > freeShares) sharesToSellCount = freeShares;
 
         // 執行賣出
         var sellGross = sharesToSellCount * sellPrice;
@@ -291,12 +281,69 @@
         freeShares -= sharesToSellCount;
         cash += netProceeds;
 
-        // 還款
-        cash -= totalObligation;
+        // ===== Phase 2: 支付信貸月付金（不足時從質押再借出） =====
+        var pledgeBorrowed = 0; // 本期質押再借出金額
+        var pledgedMV = pledgedShares * sellPrice; // 用賣出日價格計算維持率
+
+        if (cash < PMT) {
+          var shortfall = PMT - cash;
+          var currentMR = pledgeLoan > 0 ? pledgedMV / pledgeLoan : 999;
+          if (currentMR >= 3.0) {
+            // 檢查借出後維持率是否 >= 250%
+            var mrAfterBorrow = pledgedMV / (pledgeLoan + shortfall);
+            if (mrAfterBorrow >= 2.5) {
+              pledgeBorrowed += shortfall;
+              pledgeLoan += shortfall;
+              cash += shortfall;
+            } else {
+              // 借出會讓維持率低於 250%，停止
+              stopped = { period: i, reason: 'pledge_limit',
+                message: '第 ' + i + ' 期自由股不足，再借出 NT$' + Math.round(shortfall) + ' 會使維持率降至 ' + (mrAfterBorrow * 100).toFixed(0) + '%（低於 250%），停止模擬' };
+            }
+          } else {
+            stopped = { period: i, reason: 'insufficient_mr',
+              message: '第 ' + i + ' 期自由股不足且維持率 ' + (currentMR * 100).toFixed(0) + '%（低於 300%），無法再借出，策略失敗' };
+          }
+        }
+
+        // 支付信貸月付金
+        cash -= PMT;
         remainingLoan -= principal;
         if (remainingLoan < 0.01) remainingLoan = 0;
 
-        // 還款日數據
+        // ===== Phase 3: 計算質押利息（以更新後的質押借款餘額計算） =====
+        var daysSinceLastPay = Math.round((new Date(payDate + 'T00:00:00') - new Date(lastPayDate + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+        if (daysSinceLastPay < 1) daysSinceLastPay = 30;
+        var pledgeInterest = pledgeLoan * pledge.annualRate / 365 * daysSinceLastPay;
+        totalPledgeInterest += pledgeInterest;
+
+        // ===== Phase 4: 支付質押利息（不足時從質押再借出） =====
+        if (cash < pledgeInterest && !stopped) {
+          var interestShortfall = pledgeInterest - cash;
+          var currentMR2 = pledgeLoan > 0 ? pledgedMV / pledgeLoan : 999;
+          if (currentMR2 >= 3.0) {
+            var mrAfterBorrow2 = pledgedMV / (pledgeLoan + interestShortfall);
+            if (mrAfterBorrow2 >= 2.5) {
+              pledgeBorrowed += interestShortfall;
+              pledgeLoan += interestShortfall;
+              cash += interestShortfall;
+            } else {
+              stopped = { period: i, reason: 'pledge_limit',
+                message: '第 ' + i + ' 期質押利息再借出會使維持率降至 ' + (mrAfterBorrow2 * 100).toFixed(0) + '%（低於 250%），停止模擬' };
+            }
+          } else if (!stopped) {
+            stopped = { period: i, reason: 'insufficient_mr',
+              message: '第 ' + i + ' 期現金不足支付質押利息且維持率 ' + (currentMR2 * 100).toFixed(0) + '%（低於 300%），無法再借出' };
+          }
+        }
+
+        // 支付質押利息
+        cash -= pledgeInterest;
+
+        // 本月總應付金額（供顯示用）
+        var totalObligation = PMT + pledgeInterest;
+
+        // ===== Phase 5: 計算還款日數據與維持率 =====
         var payPriceInfo = getPrice(payDate, prices, tradingDays, projectedPrices, monthlyGrowth);
         var payPrice = payPriceInfo.price;
         var freeMarketValue = freeShares * payPrice;
@@ -305,12 +352,18 @@
         var maintenanceRatio = pledgeLoan > 0 ? pledgedMarketValue / pledgeLoan : 999;
         var netPosition = totalMarketValue + cash - remainingLoan - pledgeLoan;
 
+        // 追繳標記
+        if (pledgeBorrowed > 0) {
+          events.push({ type: 'pledge_borrow', amount: pledgeBorrowed });
+        }
+
         results.push({
           period: i,
           payDate: payDate, sellDate: sellDate,
           sellPrice: sellPrice, sharesToSell: sharesToSellCount, sellCost: sellCost,
           payment: PMT, principal: principal, interest: interest,
-          pledgeInterest: pledgeInterest, totalObligation: totalObligation,
+          pledgeInterest: pledgeInterest, pledgeBorrowed: pledgeBorrowed,
+          totalObligation: totalObligation,
           remainingLoan: remainingLoan, pledgeLoan: pledgeLoan,
           cash: cash,
           freeShares: freeShares, pledgedShares: pledgedShares,
@@ -323,19 +376,13 @@
           isProjected: isProjected, events: events
         });
 
-        // 停止條件判定
-        if (insufficientShares) {
-          stopped = { period: i, reason: 'insufficient_shares',
-            message: '第 ' + i + ' 期自由股不足以支付月還款（信貸月付 + 質押利息），策略失敗' };
-          break;
-        }
-
-        if (maintenanceRatio < pledge.maintenanceCallRatio) {
+        // 停止條件：維持率低於追繳線
+        if (!stopped && maintenanceRatio < pledge.maintenanceCallRatio) {
           stopped = { period: i, reason: 'margin_call',
             message: '第 ' + i + ' 期維持率 ' + (maintenanceRatio * 100).toFixed(0) + '% 低於 ' + (pledge.maintenanceCallRatio * 100).toFixed(0) + '%，觸發追繳，停止模擬' };
-          break;
         }
 
+        if (stopped) break;
         lastPayDate = payDate;
       }
 
