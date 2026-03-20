@@ -27,15 +27,16 @@
       tableHTML += '</tr></thead><tbody>';
 
       var rows = [
-        { label: '買入價格', key: function(r) { return 'NT$' + fmt(r.sim.summary.buyPrice, 2); } },
-        { label: '買入股數', key: function(r) { return fmt(r.sim.summary.initialShares); } },
-        { label: '總利息支出', key: function(r) { return 'NT$' + fmt(r.sim.summary.totalInterest); } },
-        { label: '總交易成本', key: function(r) { return 'NT$' + fmt(r.sim.summary.totalSellCost + r.sim.summary.totalBuyComm); } },
-        { label: '總股利收入', key: function(r) { return 'NT$' + fmt(r.sim.summary.totalDividends); } },
-        { label: '最終剩餘股數', key: function(r) { var last = r.sim.periods[r.sim.periods.length - 1]; return fmt(last.shares); } },
-        { label: '最終股票市值', key: function(r) { var last = r.sim.periods[r.sim.periods.length - 1]; return 'NT$' + fmt(last.marketValue); } },
-        { label: '最終剩餘現金', key: function(r) { var last = r.sim.periods[r.sim.periods.length - 1]; return 'NT$' + fmt(last.cash); } },
+        { label: '買入價格', key: function(r) { return r ? 'NT$' + fmt(r.sim.summary.buyPrice, 2) : null; } },
+        { label: '買入股數', key: function(r) { return r ? fmt(r.sim.summary.initialShares) : null; } },
+        { label: '總利息支出', key: function(r) { return r ? 'NT$' + fmt(r.sim.summary.totalInterest) : null; } },
+        { label: '總交易成本', key: function(r) { return r ? 'NT$' + fmt(r.sim.summary.totalSellCost + r.sim.summary.totalBuyComm) : null; } },
+        { label: '總股利收入', key: function(r) { return r ? 'NT$' + fmt(r.sim.summary.totalDividends) : null; } },
+        { label: '最終剩餘股數', key: function(r) { if (!r) return null; var last = r.sim.periods[r.sim.periods.length - 1]; return fmt(last.shares); } },
+        { label: '最終股票市值', key: function(r) { if (!r) return null; var last = r.sim.periods[r.sim.periods.length - 1]; return 'NT$' + fmt(last.marketValue); } },
+        { label: '最終剩餘現金', key: function(r) { if (!r) return null; var last = r.sim.periods[r.sim.periods.length - 1]; return 'NT$' + fmt(last.cash); } },
         { label: '淨損益', key: function(r) {
+          if (!r) return null;
           var last = r.sim.periods[r.sim.periods.length - 1];
           var s = r.sim.summary;
           var totalCosts = s.totalInterest + s.totalSellCost + s.totalBuyComm;
@@ -45,6 +46,7 @@
           return '<span class="' + cls + '">NT$' + fmt(pl) + '</span>';
         }},
         { label: '投資報酬率', key: function(r) {
+          if (!r) return null;
           var last = r.sim.periods[r.sim.periods.length - 1];
           var s = r.sim.summary;
           var totalCosts = s.totalInterest + s.totalSellCost + s.totalBuyComm;
@@ -54,14 +56,27 @@
           var cls = pl >= 0 ? 'profit' : 'loss';
           return '<span class="' + cls + '">' + roi + '%</span>';
         }},
-        { label: '推估月報酬率', key: function(r) { return (r.sim.summary.monthlyGrowthRate * 100).toFixed(2) + '%'; } }
+        { label: '實際歷史月報酬率', key: function(r) {
+          if (!r) return null;
+          var last = r.sim.periods[r.sim.periods.length - 1];
+          var buyPrice = r.sim.summary.buyPrice;
+          var finalPrice = last.payPrice;
+          var months = r.sim.periods.length;
+          var monthlyReturn = Math.pow(finalPrice / buyPrice, 1 / months) - 1;
+          return (monthlyReturn * 100).toFixed(2) + '%';
+        } }
       ];
 
       for (var ri = 0; ri < rows.length; ri++) {
         tableHTML += '<tr><td style="text-align:left;font-weight:600">' + rows[ri].label + '</td>';
         for (var ti = 0; ti < tickers.length; ti++) {
           var res = results[tickers[ti]];
-          tableHTML += '<td>' + (res ? rows[ri].key(res) : '-') + '</td>';
+          var val = rows[ri].key(res);
+          if (val === null) {
+            tableHTML += '<td style="color:#aaa;background:#f5f5f5">尚未上市</td>';
+          } else {
+            tableHTML += '<td>' + val + '</td>';
+          }
         }
         tableHTML += '</tr>';
       }

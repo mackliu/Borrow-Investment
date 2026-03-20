@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>多標的比較試算 — 借貸投資策略研究</title>
+<title>多標的歷史回測比較 — 借貸投資策略研究</title>
 <link rel="stylesheet" href="../../assets/css/base.css">
 <link rel="stylesheet" href="../../assets/css/components.css">
 <style>
@@ -29,8 +29,8 @@
   <a href="../compare/" class="active">比較</a>
 </nav>
 
-<h1>多標的借貸投資比較</h1>
-<div class="subtitle">以相同貸款條件，同時模擬 4 個 ETF 的借貸投資表現（使用全歷史基準報酬率）</div>
+<h1>多標的歷史回測比較</h1>
+<div class="subtitle">以相同貸款條件，使用真實歷史資料回測 4 個 ETF 的借貸投資表現（84 期 / 7 年完整多空循環）</div>
 
 <div class="input-group" id="inputForm">
   <div>
@@ -42,15 +42,11 @@
     <input type="number" id="annualRate" value="4.23" step="0.01">
   </div>
   <div>
-    <label>期數 (月)</label>
-    <input type="number" id="periods" value="84" step="1">
-  </div>
-  <div>
     <label>買入日期</label>
-    <input type="date" id="buyDate" value="2024-04-16">
+    <input type="date" id="buyDate">
   </div>
   <div>
-    <button onclick="runComparison()">開始模擬</button>
+    <button onclick="runComparison()">開始回測</button>
   </div>
 </div>
 
@@ -67,33 +63,49 @@
   <strong>說明：</strong><br>
   1. 所有標的使用相同的貸款條件與交易成本設定<br>
   2. 買入日期必須為實際交易日，否則會自動調整到下一個交易日<br>
-  3. 推估使用各標的全歷史月報酬率的基準情境（mean），不同標的的推估報酬率不同<br>
-  4. 此比較僅供研究參考，不構成投資建議
+  3. 全部使用真實歷史價格與配息資料，無任何推估<br>
+  4. 若買入日該標的尚未上市，則不參與比較（顯示「尚未上市」）<br>
+  5. 此比較僅供研究參考，不構成投資建議
 </div>
 
-<div class="footer">資料來源：台灣證券交易所 (TWSE/TPEx) ｜ 未來月份以歷史報酬率推算，僅供參考</div>
+<div class="footer">資料來源：台灣證券交易所 (TWSE/TPEx) ｜ 全部使用真實歷史資料回測</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="../../assets/js/financial-math.js"></script>
 <script src="../../assets/js/data-loader.js"></script>
 <script src="../../assets/js/backtest-engine.js"></script>
-<script src="../../assets/js/scenario-engine.js"></script>
 <script src="../../assets/js/comparison-renderer.js"></script>
 <script>
 Forcast.DataLoader.setBasePath('../../');
 
-var ETF_CONFIGS = {
-  '0050':   { futureDivPerShare: 0.55, futureDivMonths: [1, 7] },
-  '0056':   { futureDivPerShare: 0.87, futureDivMonths: [1, 4, 7, 10] },
-  '00631L': { futureDivPerShare: 0,    futureDivMonths: [] },
-  '00679B': { futureDivPerShare: 0.20, futureDivMonths: [2, 5, 8, 11] }
-};
+var PERIODS = 84;
+
+// 計算買入日期上限：今天 - 7 年
+function getMaxBuyDate() {
+  var d = new Date();
+  d.setFullYear(d.getFullYear() - 7);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// 初始化日期選擇器
+(function initDateInput() {
+  var maxDate = getMaxBuyDate();
+  var input = document.getElementById('buyDate');
+  input.value = maxDate;
+  input.max = maxDate;
+})();
 
 async function runComparison() {
   var amount = parseInt(document.getElementById('loanAmount').value);
   var rate = parseFloat(document.getElementById('annualRate').value) / 100;
-  var periods = parseInt(document.getElementById('periods').value);
   var buyDate = document.getElementById('buyDate').value;
+  var maxDate = getMaxBuyDate();
+
+  // 確保買入日不晚於上限
+  if (buyDate > maxDate) {
+    buyDate = maxDate;
+    document.getElementById('buyDate').value = maxDate;
+  }
 
   document.getElementById('loading').style.display = 'block';
   document.getElementById('compareTable').innerHTML = '';
@@ -118,26 +130,28 @@ async function runComparison() {
     // 執行模擬
     for (var i = 0; i < allData.length; i++) {
       var d = allData[i];
-      var etfConfig = ETF_CONFIGS[d.ticker];
+      var tradingDays = Object.keys(d.prices).sort();
+      var earliestDate = tradingDays[0];
 
-      // 使用 ScenarioEngine 的 base rate 取代舊的自動計算
-      var scenarioRates = Forcast.ScenarioEngine.getScenarioRates(d.prices, d.actions);
-      var baseRate = scenarioRates.base;
+      // 該標的在買入日尚未上市，跳過（結果中保留 null）
+      if (earliestDate > buyDate) {
+        results[d.ticker] = null;
+        continue;
+      }
 
       var config = {
-        loan: { amount: amount, annualRate: rate, periods: periods },
+        loan: { amount: amount, annualRate: rate, periods: PERIODS },
         trading: { buyCommission: 0.001425, sellCommission: 0.001425, sellTax: 0.001 },
         buyDate: buyDate,
         sellDayOfMonth: 13,
         dividendStrategy: "mixed",
-        projectionRate: baseRate,
-        futureDivPerShare: etfConfig.futureDivPerShare,
-        futureDivMonths: etfConfig.futureDivMonths
+        projectionRate: 0,
+        futureDivPerShare: 0,
+        futureDivMonths: []
       };
 
-      // 確認買入日有價格資料
+      // 調整到實際交易日
       if (!d.prices[buyDate]) {
-        var tradingDays = Object.keys(d.prices).sort();
         var found = false;
         for (var j = 0; j < tradingDays.length; j++) {
           if (tradingDays[j] >= buyDate) {
@@ -146,7 +160,10 @@ async function runComparison() {
             break;
           }
         }
-        if (!found) continue;
+        if (!found) {
+          results[d.ticker] = null;
+          continue;
+        }
       }
 
       var sim = Forcast.BacktestEngine.simulate(config, d.prices, d.dividends, d.actions);
@@ -155,8 +172,8 @@ async function runComparison() {
 
     Forcast.ComparisonRenderer.render(results);
   } catch (e) {
-    console.error('比較模擬失敗:', e);
-    document.getElementById('compareTable').innerHTML = '<p style="color:var(--red)">模擬失敗：' + e.message + '</p>';
+    console.error('回測比較失敗:', e);
+    document.getElementById('compareTable').innerHTML = '<p style="color:var(--red)">回測失敗：' + e.message + '</p>';
   }
 
   document.getElementById('loading').style.display = 'none';
